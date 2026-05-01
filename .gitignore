@@ -30,7 +30,19 @@ pnpm-debug.log*
 
 # env files
 .env*.local
+.env
 
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Envoy - Local state
+.envoy/cache/
+.envoy/latest
+.envoy/HEAD
+.envoy/refs/
+
+# Envoy - Config
+!.envoy/config.json
+
+
