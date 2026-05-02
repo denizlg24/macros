@@ -1,21 +1,58 @@
-# Next.js template
+# Macros
 
-This is a Next.js template with shadcn/ui.
+Macro nutrition, micronutrient, recipe, weight trend, and weigh-in photo tracking built with Next.js 16, Bun, PostgreSQL, Drizzle, Better Auth, and Resend.
 
-## Adding components
+## Setup
 
-To add components to your app, run the following command:
+1. Install dependencies:
 
 ```bash
-npx shadcn@latest add button
+bun install
 ```
 
-This will place the ui components in the `components` directory.
+2. Copy `.env.example` to `.env` and fill in the values.
 
-## Using components
-
-To use the components in your app, import them as follows:
-
-```tsx
-import { Button } from "@/components/ui/button";
+```env
+DATABASE_URL=
+BETTER_AUTH_SECRET=
+BETTER_AUTH_URL=http://localhost:3000
+RESEND_API_KEY=
+EMAIL_FROM="Macros <noreply@your-domain.com>"
+NUTRITION_API_BASE_URL=https://nutrition.denizlg24.com
 ```
+
+3. Generate and apply database migrations:
+
+```bash
+bunx drizzle-kit generate
+bunx drizzle-kit migrate
+```
+
+If the database does not have UUID generation enabled, run:
+
+```sql
+create extension if not exists pgcrypto;
+```
+
+4. Start development:
+
+```bash
+bun run dev
+```
+
+## Scripts
+
+- `bun run dev`: start Next.js with Turbopack.
+- `bun run typecheck`: run TypeScript checks.
+- `bun run lint`: run ESLint.
+- `bun run build`: create a production build.
+- `bun run format`: format TypeScript and TSX files.
+
+## Architecture Notes
+
+- Auth is email/password only through Better Auth, with required email verification and password reset emails sent by Resend.
+- Food data is snapshotted locally from `https://nutrition.denizlg24.com`; raw API payloads are kept in JSONB and normalized nutrient rows stay queryable.
+- Recipes can include foods and other recipes. Recipe nutrition is snapshotted whenever ingredients, servings, or serving labels change.
+- Food and recipe log entries store display fields and nutrient rows at log time so historical logs do not change after later edits.
+- Weigh-in photos store object-storage metadata in PostgreSQL. Image bytes belong in object storage, not the database.
+- Weight trend points and energy expenditure estimates are modeled as per-user daily records.

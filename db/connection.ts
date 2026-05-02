@@ -1,11 +1,18 @@
+import "dotenv/config"
+import { drizzle } from "drizzle-orm/node-postgres"
 
+import { schema } from "@/db/schema"
 
-import 'dotenv/config';
-import { drizzle } from 'drizzle-orm/node-postgres';
+const databaseUrl = process.env.DATABASE_URL
+const ssl =
+  databaseUrl?.includes("sslmode=require") || databaseUrl?.includes("ssl=true")
+    ? true
+    : undefined
 
-export const db = drizzle({ 
-  connection: { 
-    connectionString: process.env.DATABASE_URL!,
-    ssl: true
-  }
-});
+export const db = drizzle({
+  connection: {
+    connectionString: databaseUrl!,
+    ssl,
+  },
+  schema,
+})
