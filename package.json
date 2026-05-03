@@ -8,7 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "biome check --fix",
-    "format": "biome format --write .",
+    "format": "biome format --write --unsafe.",
     "typecheck": "next typegen && tsc --noEmit",
     "prepare": "husky"
   },

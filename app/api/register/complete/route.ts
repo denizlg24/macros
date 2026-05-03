@@ -1,0 +1,193 @@
+import { eq } from "drizzle-orm"
+import { headers } from "next/headers"
+import { NextResponse } from "next/server"
+import { z } from "zod"
+import { db } from "@/db/connection"
+import {
+  nutritionPlans,
+  userProfiles,
+  weighIns,
+  weightGoals,
+} from "@/db/schema"
+import { auth } from "@/lib/auth"
+
+const dateSchema = z.iso.date()
+const optionalPositiveNumber = z.number().positive().optional()
+
+const completeRegistrationSchema = z.object({
+  profile: z.object({
+    timezone: z.string().min(1).default("UTC"),
+    birthDate: dateSchema.optional(),
+    ageYears: z.number().int().min(13).max(120).optional(),
+    heightCm: z.number().min(50).max(260).optional(),
+    sex: z.enum(["female", "male", "other", "prefer_not_to_say"]).optional(),
+    activityLevel: z
+      .enum(["sedentary", "light", "moderate", "active", "very_active"])
+      .optional(),
+    weightUnit: z.enum(["kg", "lb"]).default("kg"),
+    energyUnit: z.enum(["kcal", "kj"]).default("kcal"),
+  }),
+  metrics: z.object({
+    measuredAt: z.iso.datetime({ offset: true }).optional(),
+    logDate: dateSchema.optional(),
+    weightKg: z.number().min(20).max(500),
+  }),
+  weightGoal: z.object({
+    goalType: z.enum(["lose", "maintain", "gain"]),
+    targetWeightKg: z.number().min(20).max(500).optional(),
+    targetDate: dateSchema.optional(),
+    weeklyRateKg: z.number().min(0).max(2).optional(),
+  }),
+  nutritionPlan: z.object({
+    name: z.string().min(1).max(120).default("Initial plan"),
+    calorieTarget: optionalPositiveNumber,
+    proteinTarget: optionalPositiveNumber,
+    carbsTarget: optionalPositiveNumber,
+    fatTarget: optionalPositiveNumber,
+  }),
+})
+
+function getTodayDateString(now: Date) {
+  return now.toISOString().slice(0, 10)
+}
+
+function getBirthDateFromAge(ageYears: number, now: Date) {
+  const birthDate = new Date(now)
+  birthDate.setUTCFullYear(birthDate.getUTCFullYear() - ageYears)
+
+  return getTodayDateString(birthDate)
+}
+
+function getProfileBirthDate(
+  profile: z.infer<typeof completeRegistrationSchema>["profile"],
+  now: Date
+) {
+  if (profile.birthDate) {
+    return profile.birthDate
+  }
+
+  if (profile.ageYears === undefined) {
+    return undefined
+  }
+
+  return getBirthDateFromAge(profile.ageYears, now)
+}
+
+function toNumericString(value: number | undefined) {
+  return value === undefined ? undefined : value.toString()
+}
+
+export async function POST(request: Request) {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  })
+
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
+  if (!session.user.emailVerified) {
+    return NextResponse.json(
+      { error: "Email is not verified" },
+      { status: 403 }
+    )
+  }
+
+  const body = await request.json().catch(() => null)
+  const parsed = completeRegistrationSchema.safeParse(body)
+
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "Invalid registration profile", issues: parsed.error.issues },
+      { status: 400 }
+    )
+  }
+
+  const now = new Date()
+  const today = getTodayDateString(now)
+  const { profile, metrics, weightGoal, nutritionPlan } = parsed.data
+  const logDate = metrics.logDate ?? today
+  const measuredAt = metrics.measuredAt ? new Date(metrics.measuredAt) : now
+  const birthDate = getProfileBirthDate(profile, now)
+
+  await db.transaction(async (tx) => {
+    await tx
+      .insert(userProfiles)
+      .values({
+        userId: session.user.id,
+        timezone: profile.timezone,
+        heightCm: toNumericString(profile.heightCm),
+        birthDate,
+        sex: profile.sex,
+        activityLevel: profile.activityLevel,
+        weightUnit: profile.weightUnit,
+        energyUnit: profile.energyUnit,
+        onboardingCompletedAt: now,
+        updatedAt: now,
+      })
+      .onConflictDoUpdate({
+        target: userProfiles.userId,
+        set: {
+          timezone: profile.timezone,
+          heightCm: toNumericString(profile.heightCm),
+          birthDate,
+          sex: profile.sex,
+          activityLevel: profile.activityLevel,
+          weightUnit: profile.weightUnit,
+          energyUnit: profile.energyUnit,
+          onboardingCompletedAt: now,
+          updatedAt: now,
+        },
+      })
+
+    await tx
+      .update(weightGoals)
+      .set({ status: "archived", updatedAt: now })
+      .where(eq(weightGoals.userId, session.user.id))
+
+    await tx.insert(weightGoals).values({
+      userId: session.user.id,
+      goalType: weightGoal.goalType,
+      startDate: today,
+      startWeightKg: metrics.weightKg.toString(),
+      targetWeightKg: toNumericString(weightGoal.targetWeightKg),
+      targetDate: weightGoal.targetDate,
+      weeklyRateKg: toNumericString(weightGoal.weeklyRateKg),
+    })
+
+    await tx
+      .insert(weighIns)
+      .values({
+        userId: session.user.id,
+        logDate,
+        measuredAt,
+        weightKg: metrics.weightKg.toString(),
+      })
+      .onConflictDoUpdate({
+        target: [weighIns.userId, weighIns.logDate],
+        set: {
+          measuredAt,
+          weightKg: metrics.weightKg.toString(),
+          updatedAt: now,
+        },
+      })
+
+    await tx
+      .update(nutritionPlans)
+      .set({ status: "archived", updatedAt: now })
+      .where(eq(nutritionPlans.userId, session.user.id))
+
+    await tx.insert(nutritionPlans).values({
+      userId: session.user.id,
+      name: nutritionPlan.name,
+      goalType: weightGoal.goalType,
+      startDate: today,
+      calorieTarget: toNumericString(nutritionPlan.calorieTarget),
+      proteinTarget: toNumericString(nutritionPlan.proteinTarget),
+      carbsTarget: toNumericString(nutritionPlan.carbsTarget),
+      fatTarget: toNumericString(nutritionPlan.fatTarget),
+    })
+  })
+
+  return NextResponse.json({ status: "completed" })
+}

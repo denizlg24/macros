@@ -8,6 +8,13 @@
       "when": 1777750825395,
       "tag": "0000_cute_giant_girl",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1777818530877,
+      "tag": "0001_foamy_steel_serpent",
+      "breakpoints": true
     }
   ]
 }

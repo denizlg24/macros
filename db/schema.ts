@@ -157,6 +157,9 @@ export const userProfiles = pgTable("user_profiles", {
   activityLevel: text("activityLevel"),
   weightUnit: text("weightUnit").notNull().default("kg"),
   energyUnit: text("energyUnit").notNull().default("kcal"),
+  onboardingCompletedAt: timestamp("onboardingCompletedAt", {
+    withTimezone: true,
+  }),
   ...timestamps,
 })
 

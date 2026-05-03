@@ -178,7 +178,7 @@ function SignupForm() {
       email: values.email,
       password: values.password,
       name: values.name,
-      callbackURL: "/",
+      callbackURL: "/register/complete",
     })
     if (response.error) {
       setError(response.error.message ?? "Something went wrong.")
