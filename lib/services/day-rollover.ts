@@ -110,11 +110,16 @@ export async function finalizeClosedNutritionDays(): Promise<DayRolloverResult> 
         "updatedAt"
       )
       select
-        "userId",
-        last_closed_date,
+        eu."userId",
+        eu.last_closed_date,
         now(),
         now()
-      from eligible_users
+      from eligible_users eu
+      where exists (
+        select 1
+        from eligible_dates ed
+        where ed."userId" = eu."userId"
+      )
       on conflict ("userId") do update set
         "lastFinalizedLogDate" = greatest(
           coalesce(

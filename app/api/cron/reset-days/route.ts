@@ -1,4 +1,4 @@
-import { timingSafeEqual } from "node:crypto"
+import { createHash, timingSafeEqual } from "node:crypto"
 import { NextResponse } from "next/server"
 import { finalizeClosedNutritionDays } from "@/lib/services/day-rollover"
 
@@ -6,15 +6,10 @@ export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 
 function timingSafeEqualText(left: string, right: string) {
-  const encoder = new TextEncoder()
-  const leftBytes = encoder.encode(left)
-  const rightBytes = encoder.encode(right)
+  const leftHash = createHash("sha256").update(left, "utf8").digest()
+  const rightHash = createHash("sha256").update(right, "utf8").digest()
 
-  if (leftBytes.length !== rightBytes.length) {
-    return false
-  }
-
-  return timingSafeEqual(leftBytes, rightBytes)
+  return timingSafeEqual(leftHash, rightHash)
 }
 
 function getBearerToken(request: Request) {
