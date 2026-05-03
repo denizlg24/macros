@@ -1,8 +1,19 @@
+import { headers } from "next/headers"
 import Image from "next/image"
+import { redirect } from "next/navigation"
 
 import { AuthForm } from "@/app/_components/auth-form"
+import { auth } from "@/lib/auth"
 
-export default function Page() {
+export default async function Page() {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  })
+
+  if (session) {
+    redirect("/app")
+  }
+
   return (
     <main className="min-h-svh bg-background text-foreground">
       <div className="mx-auto flex min-h-svh w-full max-w-sm flex-col px-5 pb-8">

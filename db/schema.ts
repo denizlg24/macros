@@ -437,6 +437,7 @@ export const foodLogEntries = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     logDate: date("logDate").notNull(),
+    timezoneAtLog: text("timezoneAtLog").notNull().default("UTC"),
     eatenAt: timestamp("eatenAt", { withTimezone: true }),
     mealType: mealTypeEnum("mealType").notNull().default("snack"),
     entryType: foodLogEntryTypeEnum("entryType").notNull().default("food"),
@@ -525,6 +526,19 @@ export const dailyNutritionSummaries = pgTable(
   (table) => [primaryKey({ columns: [table.userId, table.logDate] })]
 )
 
+export const userDayRolloverStates = pgTable("user_day_rollover_states", {
+  userId: text("userId")
+    .primaryKey()
+    .references(() => user.id, { onDelete: "cascade" }),
+  lastFinalizedLogDate: date("lastFinalizedLogDate"),
+  lastRunAt: timestamp("lastRunAt", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updatedAt", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+})
+
 export const weightGoals = pgTable(
   "weight_goals",
   {
@@ -556,6 +570,7 @@ export const weighIns = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     logDate: date("logDate").notNull(),
+    timezoneAtLog: text("timezoneAtLog").notNull().default("UTC"),
     measuredAt: timestamp("measuredAt", { withTimezone: true }).notNull(),
     weightKg: numeric("weightKg", { precision: 7, scale: 3 }).notNull(),
     source: weighInSourceEnum("source").notNull().default("manual"),
@@ -715,6 +730,7 @@ export const userRelations = relations(user, ({ many, one }) => ({
   weightTrendPoints: many(weightTrendPoints),
   weighInPhotos: many(weighInPhotos),
   energyExpenditureEstimates: many(energyExpenditureEstimates),
+  dayRolloverState: one(userDayRolloverStates),
 }))
 
 export const sessionRelations = relations(session, ({ one }) => ({
@@ -893,6 +909,16 @@ export const dailyNutritionSummaryRelations = relations(
   })
 )
 
+export const userDayRolloverStateRelations = relations(
+  userDayRolloverStates,
+  ({ one }) => ({
+    user: one(user, {
+      fields: [userDayRolloverStates.userId],
+      references: [user.id],
+    }),
+  })
+)
+
 export const weightGoalRelations = relations(weightGoals, ({ one }) => ({
   user: one(user, { fields: [weightGoals.userId], references: [user.id] }),
 }))
@@ -949,6 +975,7 @@ export const schema = {
   foodLogEntries,
   foodLogEntryNutrients,
   dailyNutritionSummaries,
+  userDayRolloverStates,
   weightGoals,
   weighIns,
   weightTrendPoints,
@@ -970,6 +997,7 @@ export const schema = {
   foodLogEntryRelations,
   foodLogEntryNutrientRelations,
   dailyNutritionSummaryRelations,
+  userDayRolloverStateRelations,
   weightGoalRelations,
   weighInRelations,
   weightTrendPointRelations,

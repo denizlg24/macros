@@ -15,6 +15,13 @@
       "when": 1777818530877,
       "tag": "0001_foamy_steel_serpent",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1777847568834,
+      "tag": "0002_broad_albert_cleary",
+      "breakpoints": true
     }
   ]
 }

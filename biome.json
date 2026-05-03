@@ -1,7 +1,10 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.4.14/schema.json",
   "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
-  "files": { "ignoreUnknown": false },
+  "files": {
+    "ignoreUnknown": false,
+    "includes": ["**", "!components/ui/**"]
+  },
   "formatter": {
     "enabled": true,
     "formatWithErrors": false,
@@ -21,6 +24,7 @@
       "!**/.next/",
       "!**/.turbo/",
       "!**/coverage/",
+      "!components/ui/**",
       "!**/pnpm-lock.yaml",
       "!**/.pnpm-store/"
     ]
@@ -65,6 +69,7 @@
       "!out/**",
       "!build/**",
       "!next-env.d.ts",
+      "!components/ui/**",
       "!.next/**",
       "!out/**",
       "!build/**",
