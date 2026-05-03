@@ -27,7 +27,7 @@ export default function Loading() {
     }, 1400)
 
     return () => clearTimeout(timeout)
-  }, [messageIndex])
+  }, [])
 
   return (
     <main className="min-h-svh bg-background text-foreground">
