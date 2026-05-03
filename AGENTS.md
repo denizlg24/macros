@@ -33,7 +33,7 @@ Store only object-storage metadata for weigh-in photos in PostgreSQL, including 
 
 ## Auth Policy
 
-Auth is email/password only. Email verification is required before sign-in. Password reset and verification emails are sent through Resend using `RESEND_API_KEY` and `EMAIL_FROM`.
+Better-auth handles authentication. For now we only have email/password with Resend to send verification and password reset emails. In the future we want magic link sign-in and social logins also.
 
 ## Migration Workflow
 
@@ -55,3 +55,4 @@ create extension if not exists pgcrypto;
 - Do not store photo bytes in PostgreSQL.
 - Do not mutate historical nutrient snapshots.
 - Keep object storage credentials and upload transport out of this scaffold unless explicitly requested.
+- **Never** use unsafe typecasts such as `as unknown as T` or `as any` if there are type erros it usually means the code is wrong or drizzle hasn't been generated.

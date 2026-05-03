@@ -1,6 +1,6 @@
 # Macros
 
-Macro nutrition, micronutrient, recipe, weight trend, and weigh-in photo tracking built with Next.js 16, Bun, PostgreSQL, Drizzle, Better Auth, and Resend.
+Macro nutrition, micronutrient, recipe, weight trend, and weight tracking built with Next.js 16, Bun, PostgreSQL, Drizzle, Better Auth, and Resend.
 
 ## Setup
 
@@ -50,7 +50,6 @@ bun run dev
 
 ## Architecture Notes
 
-- Auth is email/password only through Better Auth, with required email verification and password reset emails sent by Resend.
 - Food data is snapshotted locally from `https://nutrition.denizlg24.com`; raw API payloads are kept in JSONB and normalized nutrient rows stay queryable.
 - Recipes can include foods and other recipes. Recipe nutrition is snapshotted whenever ingredients, servings, or serving labels change.
 - Food and recipe log entries store display fields and nutrient rows at log time so historical logs do not change after later edits.
