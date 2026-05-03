@@ -1,6 +1,8 @@
+import { eq } from "drizzle-orm"
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
-
+import { db } from "@/db/connection"
+import { userProfiles } from "@/db/schema"
 import { auth } from "@/lib/auth"
 import { CompleteRegistrationForm } from "./_components/complete-registration-form"
 
@@ -11,6 +13,15 @@ export default async function CompleteRegistrationPage() {
 
   if (!session) {
     redirect("/")
+  }
+
+  const userProfile = await db.query.userProfiles.findFirst({
+    where: eq(userProfiles.userId, session.user.id),
+    columns: { onboardingCompletedAt: true },
+  })
+
+  if (userProfile?.onboardingCompletedAt) {
+    redirect("/app")
   }
 
   return <CompleteRegistrationForm />
