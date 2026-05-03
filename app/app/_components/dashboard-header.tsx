@@ -14,7 +14,6 @@ import {
   Search,
   Shapes,
   SlidersHorizontal,
-  Sparkles,
   Utensils,
   X,
   Zap,
