@@ -1,8 +1,10 @@
-import { and, eq, gte, lte } from "drizzle-orm"
+import { and, eq, gte, lte, sql } from "drizzle-orm"
 import { db } from "@/db/connection"
 import {
   dailyNutritionSummaries,
   energyExpenditureEstimates,
+  foodLogEntries,
+  foodLogEntryNutrients,
   nutritionPlans,
   userProfiles,
 } from "@/db/schema"
@@ -69,13 +71,22 @@ async function getDailyNutrition(
   userId: string,
   date: string
 ): Promise<DailyMacros> {
-  const row = await db.query.dailyNutritionSummaries.findFirst({
-    where: and(
-      eq(dailyNutritionSummaries.userId, userId),
-      eq(dailyNutritionSummaries.logDate, date)
-    ),
-    columns: { calories: true, protein: true, carbs: true, fat: true },
-  })
+  const [row] = await db
+    .select({
+      calories: sql<string>`coalesce(sum(${foodLogEntryNutrients.amount}) filter (where ${foodLogEntryNutrients.nutrientKey} = 'calories'), 0)`,
+      protein: sql<string>`coalesce(sum(${foodLogEntryNutrients.amount}) filter (where ${foodLogEntryNutrients.nutrientKey} = 'protein'), 0)`,
+      carbs: sql<string>`coalesce(sum(${foodLogEntryNutrients.amount}) filter (where ${foodLogEntryNutrients.nutrientKey} = 'carbs'), 0)`,
+      fat: sql<string>`coalesce(sum(${foodLogEntryNutrients.amount}) filter (where ${foodLogEntryNutrients.nutrientKey} = 'fat'), 0)`,
+    })
+    .from(foodLogEntries)
+    .innerJoin(
+      foodLogEntryNutrients,
+      eq(foodLogEntryNutrients.entryId, foodLogEntries.id)
+    )
+    .where(
+      and(eq(foodLogEntries.userId, userId), eq(foodLogEntries.logDate, date))
+    )
+
   return {
     calories: row ? Number(row.calories) : 0,
     protein: row ? Number(row.protein) : 0,
@@ -162,7 +173,7 @@ async function getRecentSummaries(
   userId: string,
   today: string,
   days: number
-): Promise<Array<{ calories: string }>> {
+): Promise<Array<{ logDate: string; calories: string }>> {
   const startDate = subtractDays(today, days - 1)
   return db.query.dailyNutritionSummaries.findMany({
     where: and(
@@ -170,7 +181,7 @@ async function getRecentSummaries(
       gte(dailyNutritionSummaries.logDate, startDate),
       lte(dailyNutritionSummaries.logDate, today)
     ),
-    columns: { calories: true },
+    columns: { logDate: true, calories: true },
   })
 }
 
@@ -203,16 +214,30 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
   const timezone = profile?.timezone ?? "UTC"
   const today = toIsoDate(new Date(), timezone)
 
-  const [consumed, { targets, startDate }, energyBalance] = await Promise.all([
-    getDailyNutrition(userId, today),
-    getActiveNutritionPlan(userId),
-    getEnergyBalance(userId, today, 7),
-  ])
+  const [consumed, { targets, startDate }, energyBalanceFromSummaries] =
+    await Promise.all([
+      getDailyNutrition(userId, today),
+      getActiveNutritionPlan(userId),
+      getEnergyBalance(userId, today, 7),
+    ])
+  const energyBalance = energyBalanceFromSummaries.map((point) =>
+    point.date === today ? { ...point, consumed: consumed.calories } : point
+  )
 
   const planDays = startDate ? daysBetween(startDate, today) : 0
 
-  const recentSummaries =
+  const recentSummaryRows =
     planDays > 0 ? await getRecentSummaries(userId, today, planDays) : []
+  const recentSummaries = recentSummaryRows.some((row) => row.logDate === today)
+    ? recentSummaryRows.map((row) =>
+        row.logDate === today
+          ? { ...row, calories: consumed.calories.toString() }
+          : row
+      )
+    : [
+        ...recentSummaryRows,
+        { logDate: today, calories: consumed.calories.toString() },
+      ]
 
   const goalProgress = computeGoalProgress(
     recentSummaries,

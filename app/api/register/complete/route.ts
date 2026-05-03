@@ -175,6 +175,7 @@ export async function POST(request: Request) {
       .values({
         userId: session.user.id,
         logDate,
+        timezoneAtLog: profile.timezone,
         measuredAt,
         weightKg: metrics.weightKg.toString(),
       })

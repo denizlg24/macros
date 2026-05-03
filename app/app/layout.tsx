@@ -4,6 +4,7 @@ import { db } from "@/db/connection"
 import { userProfiles } from "@/db/schema"
 import { getSession } from "@/lib/session"
 import { DashboardHeader } from "./_components/dashboard-header"
+import { TimezoneSync } from "./_components/timezone-sync"
 
 export default async function AppLayout({
   children,
@@ -18,7 +19,7 @@ export default async function AppLayout({
 
   const userProfile = await db.query.userProfiles.findFirst({
     where: eq(userProfiles.userId, session.user.id),
-    columns: { onboardingCompletedAt: true },
+    columns: { onboardingCompletedAt: true, timezone: true },
   })
 
   if (!userProfile?.onboardingCompletedAt) {
@@ -27,6 +28,7 @@ export default async function AppLayout({
 
   return (
     <>
+      <TimezoneSync initialTimezone={userProfile.timezone} />
       {children}
       <DashboardHeader />
     </>
