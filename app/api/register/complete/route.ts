@@ -47,15 +47,14 @@ const completeRegistrationSchema = z.object({
   }),
 })
 
-function getTodayDateString(now: Date) {
-  return now.toISOString().slice(0, 10)
+function getTodayInTimezone(now: Date, timezone: string) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: timezone }).format(now)
 }
 
 function getBirthDateFromAge(ageYears: number, now: Date) {
   const birthDate = new Date(now)
   birthDate.setUTCFullYear(birthDate.getUTCFullYear() - ageYears)
-
-  return getTodayDateString(birthDate)
+  return birthDate.toISOString().slice(0, 10)
 }
 
 function getProfileBirthDate(
@@ -103,9 +102,25 @@ export async function POST(request: Request) {
     )
   }
 
-  const now = new Date()
-  const today = getTodayDateString(now)
   const { profile, metrics, weightGoal, nutritionPlan } = parsed.data
+
+  const existingProfile = await db.query.userProfiles.findFirst({
+    where: eq(userProfiles.userId, session.user.id),
+    columns: { onboardingCompletedAt: true },
+  })
+
+  if (
+    existingProfile?.onboardingCompletedAt !== null &&
+    existingProfile?.onboardingCompletedAt !== undefined
+  ) {
+    return NextResponse.json(
+      { error: "Onboarding already completed" },
+      { status: 409 }
+    )
+  }
+
+  const now = new Date()
+  const today = getTodayInTimezone(now, profile.timezone)
   const logDate = metrics.logDate ?? today
   const measuredAt = metrics.measuredAt ? new Date(metrics.measuredAt) : now
   const birthDate = getProfileBirthDate(profile, now)
