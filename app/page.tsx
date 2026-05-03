@@ -13,7 +13,10 @@ export default function Page() {
         </section>
 
         <footer className="border-t pt-4 text-center text-xs leading-5 text-muted-foreground">
-          Your free macro tracker. Built by <a href="https://denizlg24.com" className="underline" >denizl24.com</a>
+          Your free macro tracker. Built by{" "}
+          <a href="https://denizlg24.com" className="underline">
+            denizl24.com
+          </a>
         </footer>
       </div>
     </main>

@@ -111,12 +111,8 @@
           "name": "account_user_id_user_id_fk",
           "tableFrom": "account",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -192,12 +188,8 @@
           "name": "daily_nutrition_summaries_userId_user_id_fk",
           "tableFrom": "daily_nutrition_summaries",
           "tableTo": "user",
-          "columnsFrom": [
-            "userId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["userId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -205,10 +197,7 @@
       "compositePrimaryKeys": {
         "daily_nutrition_summaries_userId_logDate_pk": {
           "name": "daily_nutrition_summaries_userId_logDate_pk",
-          "columns": [
-            "userId",
-            "logDate"
-          ]
+          "columns": ["userId", "logDate"]
         }
       },
       "uniqueConstraints": {},
@@ -280,12 +269,8 @@
           "name": "energy_expenditure_estimates_userId_user_id_fk",
           "tableFrom": "energy_expenditure_estimates",
           "tableTo": "user",
-          "columnsFrom": [
-            "userId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["userId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -293,10 +278,7 @@
       "compositePrimaryKeys": {
         "energy_expenditure_estimates_userId_logDate_pk": {
           "name": "energy_expenditure_estimates_userId_logDate_pk",
-          "columns": [
-            "userId",
-            "logDate"
-          ]
+          "columns": ["userId", "logDate"]
         }
       },
       "uniqueConstraints": {},
@@ -509,12 +491,8 @@
           "name": "food_log_entries_userId_user_id_fk",
           "tableFrom": "food_log_entries",
           "tableTo": "user",
-          "columnsFrom": [
-            "userId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["userId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -522,12 +500,8 @@
           "name": "food_log_entries_foodId_foods_id_fk",
           "tableFrom": "food_log_entries",
           "tableTo": "foods",
-          "columnsFrom": [
-            "foodId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["foodId"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -535,12 +509,8 @@
           "name": "food_log_entries_snapshotId_food_nutrition_snapshots_id_fk",
           "tableFrom": "food_log_entries",
           "tableTo": "food_nutrition_snapshots",
-          "columnsFrom": [
-            "snapshotId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["snapshotId"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -548,12 +518,8 @@
           "name": "food_log_entries_recipeId_recipes_id_fk",
           "tableFrom": "food_log_entries",
           "tableTo": "recipes",
-          "columnsFrom": [
-            "recipeId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["recipeId"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -561,12 +527,8 @@
           "name": "food_log_entries_recipeSnapshotId_recipe_nutrition_snapshots_id_fk",
           "tableFrom": "food_log_entries",
           "tableTo": "recipe_nutrition_snapshots",
-          "columnsFrom": [
-            "recipeSnapshotId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["recipeSnapshotId"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -612,12 +574,8 @@
           "name": "food_log_entry_nutrients_entryId_food_log_entries_id_fk",
           "tableFrom": "food_log_entry_nutrients",
           "tableTo": "food_log_entries",
-          "columnsFrom": [
-            "entryId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["entryId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -625,12 +583,8 @@
           "name": "food_log_entry_nutrients_nutrientKey_nutrient_definitions_key_fk",
           "tableFrom": "food_log_entry_nutrients",
           "tableTo": "nutrient_definitions",
-          "columnsFrom": [
-            "nutrientKey"
-          ],
-          "columnsTo": [
-            "key"
-          ],
+          "columnsFrom": ["nutrientKey"],
+          "columnsTo": ["key"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -638,10 +592,7 @@
       "compositePrimaryKeys": {
         "food_log_entry_nutrients_entryId_nutrientKey_pk": {
           "name": "food_log_entry_nutrients_entryId_nutrientKey_pk",
-          "columns": [
-            "entryId",
-            "nutrientKey"
-          ]
+          "columns": ["entryId", "nutrientKey"]
         }
       },
       "uniqueConstraints": {},
@@ -679,12 +630,8 @@
           "name": "food_nutrient_values_snapshotId_food_nutrition_snapshots_id_fk",
           "tableFrom": "food_nutrient_values",
           "tableTo": "food_nutrition_snapshots",
-          "columnsFrom": [
-            "snapshotId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["snapshotId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -692,12 +639,8 @@
           "name": "food_nutrient_values_nutrientKey_nutrient_definitions_key_fk",
           "tableFrom": "food_nutrient_values",
           "tableTo": "nutrient_definitions",
-          "columnsFrom": [
-            "nutrientKey"
-          ],
-          "columnsTo": [
-            "key"
-          ],
+          "columnsFrom": ["nutrientKey"],
+          "columnsTo": ["key"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -705,10 +648,7 @@
       "compositePrimaryKeys": {
         "food_nutrient_values_snapshotId_nutrientKey_pk": {
           "name": "food_nutrient_values_snapshotId_nutrientKey_pk",
-          "columns": [
-            "snapshotId",
-            "nutrientKey"
-          ]
+          "columns": ["snapshotId", "nutrientKey"]
         }
       },
       "uniqueConstraints": {},
@@ -812,12 +752,8 @@
           "name": "food_nutrition_snapshots_foodId_foods_id_fk",
           "tableFrom": "food_nutrition_snapshots",
           "tableTo": "foods",
-          "columnsFrom": [
-            "foodId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["foodId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -956,12 +892,8 @@
           "name": "foods_ownerUserId_user_id_fk",
           "tableFrom": "foods",
           "tableTo": "user",
-          "columnsFrom": [
-            "ownerUserId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["ownerUserId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1070,12 +1002,8 @@
           "name": "nutrient_targets_planId_nutrition_plans_id_fk",
           "tableFrom": "nutrient_targets",
           "tableTo": "nutrition_plans",
-          "columnsFrom": [
-            "planId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["planId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1083,12 +1011,8 @@
           "name": "nutrient_targets_nutrientKey_nutrient_definitions_key_fk",
           "tableFrom": "nutrient_targets",
           "tableTo": "nutrient_definitions",
-          "columnsFrom": [
-            "nutrientKey"
-          ],
-          "columnsTo": [
-            "key"
-          ],
+          "columnsFrom": ["nutrientKey"],
+          "columnsTo": ["key"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1098,10 +1022,7 @@
         "nutrient_targets_plan_nutrient_unique": {
           "name": "nutrient_targets_plan_nutrient_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "planId",
-            "nutrientKey"
-          ]
+          "columns": ["planId", "nutrientKey"]
         }
       },
       "policies": {},
@@ -1220,12 +1141,8 @@
           "name": "nutrition_plans_userId_user_id_fk",
           "tableFrom": "nutrition_plans",
           "tableTo": "user",
-          "columnsFrom": [
-            "userId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["userId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1382,12 +1299,8 @@
           "name": "recipe_ingredients_recipeId_recipes_id_fk",
           "tableFrom": "recipe_ingredients",
           "tableTo": "recipes",
-          "columnsFrom": [
-            "recipeId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["recipeId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1395,12 +1308,8 @@
           "name": "recipe_ingredients_foodId_foods_id_fk",
           "tableFrom": "recipe_ingredients",
           "tableTo": "foods",
-          "columnsFrom": [
-            "foodId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["foodId"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -1408,12 +1317,8 @@
           "name": "recipe_ingredients_foodSnapshotId_food_nutrition_snapshots_id_fk",
           "tableFrom": "recipe_ingredients",
           "tableTo": "food_nutrition_snapshots",
-          "columnsFrom": [
-            "foodSnapshotId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["foodSnapshotId"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -1421,12 +1326,8 @@
           "name": "recipe_ingredients_childRecipeId_recipes_id_fk",
           "tableFrom": "recipe_ingredients",
           "tableTo": "recipes",
-          "columnsFrom": [
-            "childRecipeId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["childRecipeId"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -1556,12 +1457,8 @@
           "name": "recipe_nutrition_snapshots_recipeId_recipes_id_fk",
           "tableFrom": "recipe_nutrition_snapshots",
           "tableTo": "recipes",
-          "columnsFrom": [
-            "recipeId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["recipeId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1602,12 +1499,8 @@
           "name": "recipe_snapshot_nutrients_snapshotId_recipe_nutrition_snapshots_id_fk",
           "tableFrom": "recipe_snapshot_nutrients",
           "tableTo": "recipe_nutrition_snapshots",
-          "columnsFrom": [
-            "snapshotId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["snapshotId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1615,12 +1508,8 @@
           "name": "recipe_snapshot_nutrients_nutrientKey_nutrient_definitions_key_fk",
           "tableFrom": "recipe_snapshot_nutrients",
           "tableTo": "nutrient_definitions",
-          "columnsFrom": [
-            "nutrientKey"
-          ],
-          "columnsTo": [
-            "key"
-          ],
+          "columnsFrom": ["nutrientKey"],
+          "columnsTo": ["key"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1628,10 +1517,7 @@
       "compositePrimaryKeys": {
         "recipe_snapshot_nutrients_snapshotId_nutrientKey_pk": {
           "name": "recipe_snapshot_nutrients_snapshotId_nutrientKey_pk",
-          "columns": [
-            "snapshotId",
-            "nutrientKey"
-          ]
+          "columns": ["snapshotId", "nutrientKey"]
         }
       },
       "uniqueConstraints": {},
@@ -1780,12 +1666,8 @@
           "name": "recipes_userId_user_id_fk",
           "tableFrom": "recipes",
           "tableTo": "user",
-          "columnsFrom": [
-            "userId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["userId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1873,12 +1755,8 @@
           "name": "session_user_id_user_id_fk",
           "tableFrom": "session",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1888,9 +1766,7 @@
         "session_token_unique": {
           "name": "session_token_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "token"
-          ]
+          "columns": ["token"]
         }
       },
       "policies": {},
@@ -1954,9 +1830,7 @@
         "user_email_unique": {
           "name": "user_email_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "email"
-          ]
+          "columns": ["email"]
         }
       },
       "policies": {},
@@ -2039,12 +1913,8 @@
           "name": "user_profiles_userId_user_id_fk",
           "tableFrom": "user_profiles",
           "tableTo": "user",
-          "columnsFrom": [
-            "userId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["userId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2251,12 +2121,8 @@
           "name": "weigh_in_photos_weighInId_weigh_ins_id_fk",
           "tableFrom": "weigh_in_photos",
           "tableTo": "weigh_ins",
-          "columnsFrom": [
-            "weighInId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["weighInId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -2264,12 +2130,8 @@
           "name": "weigh_in_photos_userId_user_id_fk",
           "tableFrom": "weigh_in_photos",
           "tableTo": "user",
-          "columnsFrom": [
-            "userId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["userId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2279,11 +2141,7 @@
         "weigh_in_photos_weigh_in_angle_storage_key_unique": {
           "name": "weigh_in_photos_weigh_in_angle_storage_key_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "weighInId",
-            "angle",
-            "storageKey"
-          ]
+          "columns": ["weighInId", "angle", "storageKey"]
         }
       },
       "policies": {},
@@ -2382,12 +2240,8 @@
           "name": "weigh_ins_userId_user_id_fk",
           "tableFrom": "weigh_ins",
           "tableTo": "user",
-          "columnsFrom": [
-            "userId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["userId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2397,10 +2251,7 @@
         "weigh_ins_user_log_date_unique": {
           "name": "weigh_ins_user_log_date_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "userId",
-            "logDate"
-          ]
+          "columns": ["userId", "logDate"]
         }
       },
       "policies": {},
@@ -2507,12 +2358,8 @@
           "name": "weight_goals_userId_user_id_fk",
           "tableFrom": "weight_goals",
           "tableTo": "user",
-          "columnsFrom": [
-            "userId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["userId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2572,12 +2419,8 @@
           "name": "weight_trend_points_userId_user_id_fk",
           "tableFrom": "weight_trend_points",
           "tableTo": "user",
-          "columnsFrom": [
-            "userId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["userId"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2585,10 +2428,7 @@
       "compositePrimaryKeys": {
         "weight_trend_points_userId_logDate_pk": {
           "name": "weight_trend_points_userId_logDate_pk",
-          "columns": [
-            "userId",
-            "logDate"
-          ]
+          "columns": ["userId", "logDate"]
         }
       },
       "uniqueConstraints": {},
@@ -2601,103 +2441,62 @@
     "public.expenditure_method": {
       "name": "expenditure_method",
       "schema": "public",
-      "values": [
-        "trend"
-      ]
+      "values": ["trend"]
     },
     "public.food_log_entry_type": {
       "name": "food_log_entry_type",
       "schema": "public",
-      "values": [
-        "food",
-        "recipe",
-        "quick_add"
-      ]
+      "values": ["food", "recipe", "quick_add"]
     },
     "public.food_source": {
       "name": "food_source",
       "schema": "public",
-      "values": [
-        "deniz_nutrition",
-        "custom"
-      ]
+      "values": ["deniz_nutrition", "custom"]
     },
     "public.goal_type": {
       "name": "goal_type",
       "schema": "public",
-      "values": [
-        "lose",
-        "maintain",
-        "gain"
-      ]
+      "values": ["lose", "maintain", "gain"]
     },
     "public.meal_type": {
       "name": "meal_type",
       "schema": "public",
-      "values": [
-        "breakfast",
-        "lunch",
-        "dinner",
-        "snack"
-      ]
+      "values": ["breakfast", "lunch", "dinner", "snack"]
     },
     "public.nutrition_plan_status": {
       "name": "nutrition_plan_status",
       "schema": "public",
-      "values": [
-        "active",
-        "archived"
-      ]
+      "values": ["active", "archived"]
     },
     "public.recipe_ingredient_type": {
       "name": "recipe_ingredient_type",
       "schema": "public",
-      "values": [
-        "food",
-        "recipe"
-      ]
+      "values": ["food", "recipe"]
     },
     "public.recipe_source": {
       "name": "recipe_source",
       "schema": "public",
-      "values": [
-        "custom"
-      ]
+      "values": ["custom"]
     },
     "public.recipe_status": {
       "name": "recipe_status",
       "schema": "public",
-      "values": [
-        "draft",
-        "active",
-        "archived"
-      ]
+      "values": ["draft", "active", "archived"]
     },
     "public.weigh_in_photo_angle": {
       "name": "weigh_in_photo_angle",
       "schema": "public",
-      "values": [
-        "front",
-        "left",
-        "right",
-        "back",
-        "other"
-      ]
+      "values": ["front", "left", "right", "back", "other"]
     },
     "public.weigh_in_source": {
       "name": "weigh_in_source",
       "schema": "public",
-      "values": [
-        "manual"
-      ]
+      "values": ["manual"]
     },
     "public.weight_goal_status": {
       "name": "weight_goal_status",
       "schema": "public",
-      "values": [
-        "active",
-        "archived"
-      ]
+      "values": ["active", "archived"]
     }
   },
   "schemas": {},

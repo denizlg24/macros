@@ -506,9 +506,7 @@ export const dailyNutritionSummaries = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     logDate: date("logDate").notNull(),
-    nutrients: jsonb("nutrients")
-      .notNull()
-      .default(sql`'{}'::jsonb`),
+    nutrients: jsonb("nutrients").notNull().default(sql`'{}'::jsonb`),
     calories: numeric("calories", { precision: 12, scale: 4 })
       .notNull()
       .default("0"),
@@ -637,9 +635,7 @@ export const energyExpenditureEstimates = pgTable(
     }).notNull(),
     confidence: numeric("confidence", { precision: 5, scale: 4 }),
     method: expenditureMethodEnum("method").notNull().default("trend"),
-    inputs: jsonb("inputs")
-      .notNull()
-      .default(sql`'{}'::jsonb`),
+    inputs: jsonb("inputs").notNull().default(sql`'{}'::jsonb`),
     ...timestamps,
   },
   (table) => [primaryKey({ columns: [table.userId, table.logDate] })]

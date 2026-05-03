@@ -44,7 +44,7 @@ bun run dev
 
 - `bun run dev`: start Next.js with Turbopack.
 - `bun run typecheck`: run TypeScript checks.
-- `bun run lint`: run ESLint.
+- `bun run lint`: run Biome check.
 - `bun run build`: create a production build.
 - `bun run format`: format TypeScript and TSX files.
 
