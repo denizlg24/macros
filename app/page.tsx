@@ -1,21 +1,30 @@
-import { AuthForm } from "@/components/auth-form"
+import Image from "next/image"
+
+import { AuthForm } from "@/app/_components/auth-form"
 
 export default function Page() {
   return (
     <main className="min-h-svh bg-background text-foreground">
-      <div className="mx-auto flex min-h-svh w-full max-w-120 flex-col px-5 pt-5 pb-6 sm:px-7">
-        <header className="border-b pb-5 text-center">
-          <p className="text-base font-semibold">Macros</p>
+      <div className="mx-auto flex min-h-svh w-full max-w-sm flex-col px-5 pb-8">
+        <header className="flex items-center gap-2 pt-10 pb-7">
+          <Image
+            src="/logo_transparent.png"
+            alt="Macros"
+            width={24}
+            height={24}
+            className="size-6"
+          />
+          <p className="text-sm font-semibold">Macros</p>
         </header>
 
-        <section className="flex flex-1 flex-col justify-center py-9">
+        <section className="flex-1">
           <AuthForm />
         </section>
 
         <footer className="border-t pt-4 text-center text-xs leading-5 text-muted-foreground">
           Your free macro tracker. Built by{" "}
           <a href="https://denizlg24.com" className="underline">
-            denizl24.com
+            denizlg24.com
           </a>
         </footer>
       </div>
