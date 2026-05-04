@@ -19,6 +19,7 @@ BETTER_AUTH_URL=http://localhost:3000
 RESEND_API_KEY=
 EMAIL_FROM="Macros <noreply@your-domain.com>"
 NUTRITION_API_BASE_URL=https://nutrition.denizlg24.com
+NUTRITION_API_KEY=
 ```
 
 3. Generate and apply database migrations:
