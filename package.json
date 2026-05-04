@@ -7,7 +7,7 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "biome check --fix --unsafe",
+    "lint": "biome check --fix",
     "format": "biome format --write .",
     "typecheck": "next typegen && tsc --noEmit",
     "prepare": "husky"

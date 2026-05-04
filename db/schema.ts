@@ -83,6 +83,10 @@ export const weighInPhotoAngleEnum = pgEnum("weigh_in_photo_angle", [
   "other",
 ])
 export const expenditureMethodEnum = pgEnum("expenditure_method", ["trend"])
+export const caloriePreferenceEnum = pgEnum("calorie_preference", [
+  "consumed",
+  "remaining",
+])
 
 export const user = pgTable("user", {
   id: text("id").primaryKey(),
@@ -157,6 +161,9 @@ export const userProfiles = pgTable("user_profiles", {
   activityLevel: text("activityLevel"),
   weightUnit: text("weightUnit").notNull().default("kg"),
   energyUnit: text("energyUnit").notNull().default("kcal"),
+  caloriePreference: caloriePreferenceEnum("caloriePreference")
+    .notNull()
+    .default("consumed"),
   onboardingCompletedAt: timestamp("onboardingCompletedAt", {
     withTimezone: true,
   }),
@@ -472,6 +479,16 @@ export const foodLogEntries = pgTable(
   (table) => [
     index("food_log_entries_user_log_date_idx").on(table.userId, table.logDate),
     index("food_log_entries_user_eaten_at_idx").on(table.userId, table.eatenAt),
+    index("food_log_entries_user_type_eaten_at_idx").on(
+      table.userId,
+      table.entryType,
+      table.eatenAt.desc()
+    ),
+    index("food_log_entries_user_food_eaten_at_idx").on(
+      table.userId,
+      table.foodId,
+      table.eatenAt.desc()
+    ),
     index("food_log_entries_food_id_idx").on(table.foodId),
     index("food_log_entries_recipe_id_idx").on(table.recipeId),
     check(
