@@ -72,8 +72,31 @@ async function readJsonResponse(response: Response) {
   return body
 }
 
-function currentHour() {
-  return new Date().getHours()
+function getHourInTimezone(date: Date, timezone: string) {
+  const hour = Number(
+    new Intl.DateTimeFormat("en-US", {
+      hour: "numeric",
+      hourCycle: "h23",
+      timeZone: timezone,
+    }).format(date)
+  )
+
+  return Number.isFinite(hour) ? hour : date.getHours()
+}
+
+function dateFromIsoDate(value: string) {
+  const parts = value.split("-")
+  const year = Number(parts[0])
+  const month = Number(parts[1])
+  const day = Number(parts[2])
+
+  if (!year || !month || !day) {
+    const fallback = new Date()
+    fallback.setHours(0, 0, 0, 0)
+    return fallback
+  }
+
+  return new Date(year, month - 1, day)
 }
 
 function formatHourLabel(hour: number) {
@@ -114,9 +137,8 @@ export function useAddFoodLogic() {
     }))
 
     try {
-      const hour = currentHour()
       const [picksRes, historyRes] = await Promise.all([
-        fetch(`/api/foods/history?at=${hour}&limit=5`, { cache: "no-store" }),
+        fetch("/api/foods/history?limit=5", { cache: "no-store" }),
         fetch(`/api/foods/history?limit=20`, { cache: "no-store" }),
       ])
 
@@ -601,12 +623,14 @@ function DrumColumn({
 function HeaderChips({
   selectedDate,
   selectedHour,
+  todayDate,
   onDateChange,
   onHourChange,
   calorieSummary,
 }: {
   selectedDate: Date
   selectedHour: number
+  todayDate: Date
   onDateChange: (date: Date) => void
   onHourChange: (hour: number) => void
   calorieSummary: DailyCalorieSummary
@@ -614,20 +638,14 @@ function HeaderChips({
   const [timeDrawerOpen, setTimeDrawerOpen] = useState(false)
   const { consumed, target } = calorieSummary
 
-  const today = useMemo(() => {
-    const d = new Date()
-    d.setHours(0, 0, 0, 0)
-    return d
-  }, [])
-
   const dates = useMemo(
     () =>
       Array.from({ length: 14 }, (_, i) => {
-        const d = new Date(today)
-        d.setDate(today.getDate() + i)
+        const d = new Date(todayDate)
+        d.setDate(todayDate.getDate() - (13 - i))
         return d
       }),
-    [today]
+    [todayDate]
   )
 
   const selectedDateIndex = dates.findIndex(
@@ -637,7 +655,7 @@ function HeaderChips({
   function getDateLabel(i: number) {
     const d = dates[i]
     if (!d) return ""
-    if (d.getTime() === today.getTime()) return "Today"
+    if (d.getTime() === todayDate.getTime()) return "Today"
     return d.toLocaleDateString("en-US", { weekday: "short", day: "numeric" })
   }
 
@@ -766,6 +784,10 @@ export function AddFoodLogic({
   const logic = useAddFoodLogic()
   const [draft, setDraft] = useState("")
   const inputRef = useRef<HTMLInputElement | null>(null)
+  const todayDate = useMemo(
+    () => dateFromIsoDate(calorieSummary.today),
+    [calorieSummary.today]
+  )
 
   useEffect(() => {
     const handle = setTimeout(() => {
@@ -780,12 +802,12 @@ export function AddFoodLogic({
   const trimmed = draft.trim()
   const hasQuery = trimmed.length > 0
 
-  const [selectedDate, setSelectedDate] = useState(() => {
-    const d = new Date()
-    d.setHours(0, 0, 0, 0)
-    return d
-  })
-  const [selectedHour, setSelectedHour] = useState(currentHour)
+  const [selectedDate, setSelectedDate] = useState(() =>
+    dateFromIsoDate(calorieSummary.today)
+  )
+  const [selectedHour, setSelectedHour] = useState(() =>
+    getHourInTimezone(new Date(), calorieSummary.timezone)
+  )
   const hourLabel = formatHourLabel(selectedHour)
 
   const fromHistory = useMemo(() => {
@@ -824,6 +846,7 @@ export function AddFoodLogic({
         <HeaderChips
           selectedDate={selectedDate}
           selectedHour={selectedHour}
+          todayDate={todayDate}
           onDateChange={setSelectedDate}
           onHourChange={setSelectedHour}
           calorieSummary={calorieSummary}

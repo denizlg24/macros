@@ -57,16 +57,31 @@ function openFoodCache() {
   })
 }
 
-function readStoreValue(storeName: string, key: string) {
-  return new Promise<unknown>((resolve, reject) => {
+function readStoreValues(storeName: string, keys: string[]) {
+  return new Promise<unknown[]>((resolve, reject) => {
+    if (keys.length === 0) {
+      resolve([])
+      return
+    }
+
     openFoodCache()
       .then((database) => {
         const transaction = database.transaction(storeName, "readonly")
-        const request = transaction.objectStore(storeName).get(key)
+        const store = transaction.objectStore(storeName)
+        const values = new Array<unknown>(keys.length)
 
-        request.onerror = () => reject(request.error)
-        request.onsuccess = () => resolve(request.result)
-        transaction.oncomplete = () => database.close()
+        keys.forEach((key, index) => {
+          const request = store.get(key)
+          request.onerror = () => reject(request.error)
+          request.onsuccess = () => {
+            values[index] = request.result
+          }
+        })
+
+        transaction.oncomplete = () => {
+          database.close()
+          resolve(values)
+        }
         transaction.onerror = () => {
           database.close()
           reject(transaction.error)
@@ -123,19 +138,17 @@ export async function getCachedFoodSearch(params: FoodSearchParams) {
   }
 
   const key = getFoodSearchCacheKey(params)
-  const entry = cachedSearchEntrySchema.safeParse(
-    await readStoreValue(queryStore, key)
-  )
+  const [rawEntry] = await readStoreValues(queryStore, [key])
+  const entry = cachedSearchEntrySchema.safeParse(rawEntry)
 
   if (!entry.success || entry.data.expiresAt < Date.now()) {
     return null
   }
 
+  const cachedItems = await readStoreValues(itemStore, entry.data.itemIds)
   const items: FoodSearchItem[] = []
-  for (const itemId of entry.data.itemIds) {
-    const cachedItem = cachedFoodItemSchema.safeParse(
-      await readStoreValue(itemStore, itemId)
-    )
+  for (const value of cachedItems) {
+    const cachedItem = cachedFoodItemSchema.safeParse(value)
 
     if (cachedItem.success) {
       items.push(cachedItem.data.item)

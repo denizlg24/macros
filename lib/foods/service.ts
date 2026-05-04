@@ -105,28 +105,7 @@ async function ensureNutrientDefinitionRows() {
 
 async function upsertExternalFood(summary: ExternalFoodSummary) {
   const now = new Date()
-  const existing = await db.query.foods.findFirst({
-    where: and(
-      eq(foods.source, "deniz_nutrition"),
-      eq(foods.externalItemId, summary.id)
-    ),
-    columns: { id: true },
-  })
-
-  if (existing) {
-    await db
-      .update(foods)
-      .set({
-        barcode: summary.barcode ?? null,
-        name: summary.name,
-        brand: summary.brand ?? null,
-        updatedAt: now,
-      })
-      .where(eq(foods.id, existing.id))
-    return existing.id
-  }
-
-  const [inserted] = await db
+  const [upserted] = await db
     .insert(foods)
     .values({
       source: "deniz_nutrition",
@@ -135,9 +114,23 @@ async function upsertExternalFood(summary: ExternalFoodSummary) {
       name: summary.name,
       brand: summary.brand ?? null,
     })
+    .onConflictDoUpdate({
+      target: [foods.source, foods.externalItemId],
+      targetWhere: sql`${foods.externalItemId} is not null`,
+      set: {
+        barcode: summary.barcode ?? null,
+        name: summary.name,
+        brand: summary.brand ?? null,
+        updatedAt: now,
+      },
+    })
     .returning({ id: foods.id })
 
-  return inserted.id
+  if (!upserted) {
+    throw new Error("Failed to upsert external food")
+  }
+
+  return upserted.id
 }
 
 async function getLatestSnapshot(foodId: string) {
@@ -173,10 +166,18 @@ function nutrientsHaveDrifted(
     latest.nutrients.map((row) => [row.nutrientKey, Number(row.amount)])
   )
 
-  for (const [key, amount] of Object.entries(nutrition.nutrients)) {
+  const currentNutrients = Object.entries(nutrition.nutrients)
+
+  if (latestNutrients.size !== currentNutrients.length) {
+    return true
+  }
+
+  for (const [key, amount] of currentNutrients) {
+    const latestAmount = latestNutrients.get(key)
+
     if (
-      Math.abs((latestNutrients.get(key) ?? 0) - amount) >
-      snapshotDriftTolerance
+      latestAmount == null ||
+      Math.abs(latestAmount - amount) > snapshotDriftTolerance
     ) {
       return true
     }

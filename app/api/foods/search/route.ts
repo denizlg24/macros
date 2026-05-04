@@ -1,10 +1,17 @@
 import { NextResponse } from "next/server"
 
+import { getRequiredSession } from "@/lib/api/session"
 import { foodSearchParamsSchema } from "@/lib/foods/contracts"
 import { toFoodSearchItem } from "@/lib/foods/service"
 import { searchNutritionFoods } from "@/lib/foods/source"
 
 export async function GET(request: Request) {
+  const { session, response } = await getRequiredSession()
+
+  if (!session) {
+    return response
+  }
+
   const url = new URL(request.url)
   const parsed = foodSearchParamsSchema.safeParse({
     q: url.searchParams.get("q") ?? undefined,
