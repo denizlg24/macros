@@ -1,16 +1,22 @@
 "use client"
 
-import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { useEffect, useRef, useState, useTransition } from "react"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import type { DailyMacros, NutritionTargets } from "@/lib/queries/dashboard"
+import type {
+  CaloriePreference,
+  DailyMacros,
+  NutritionTargets,
+} from "@/lib/queries/dashboard"
 import { CalorieRing } from "./calorie-ring"
 
 type Props = {
   consumed: DailyMacros
   targets: NutritionTargets
+  initialPreference: CaloriePreference
 }
 
-type View = "consumed" | "remaining"
+type View = CaloriePreference
 
 const MACROS = [
   { key: "protein", label: "Protein", color: "#ef4444" },
@@ -18,8 +24,58 @@ const MACROS = [
   { key: "carbs", label: "Carbs", color: "#22c55e" },
 ] as const
 
-export function NutritionSection({ consumed, targets }: Props) {
-  const [view, setView] = useState<View>("consumed")
+export function NutritionSection({
+  consumed,
+  targets,
+  initialPreference,
+}: Props) {
+  const router = useRouter()
+  const [view, setView] = useState<View>(initialPreference)
+  const [, startTransition] = useTransition()
+  const saveRequestSeq = useRef(0)
+  const saveController = useRef<AbortController | null>(null)
+
+  useEffect(() => {
+    return () => saveController.current?.abort()
+  }, [])
+
+  function handleViewChange(next: View) {
+    if (next === view) return
+    setView(next)
+
+    const requestId = saveRequestSeq.current + 1
+    saveRequestSeq.current = requestId
+    saveController.current?.abort()
+
+    const controller = new AbortController()
+    saveController.current = controller
+
+    fetch("/api/profile/preferences", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ caloriePreference: next }),
+      signal: controller.signal,
+    })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error(`Request failed with ${response.status}`)
+        }
+
+        if (saveRequestSeq.current !== requestId) {
+          return
+        }
+
+        startTransition(() => {
+          router.refresh()
+        })
+      })
+      .catch((error) => {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return
+        }
+        console.error("Failed to persist calorie preference", error)
+      })
+  }
 
   const remaining: DailyMacros = {
     calories: Math.max(0, (targets.calories ?? 0) - consumed.calories),
@@ -43,18 +99,14 @@ export function NutritionSection({ consumed, targets }: Props) {
           <p className="text-xs text-muted-foreground mt-1">{secondaryLabel}</p>
         </div>
 
-        <div className="relative w-44 shrink-0">
-          <CalorieRing consumed={consumed.calories} target={targets.calories} />
-          <div className="absolute inset-0 flex items-center justify-center pb-4">
-            <div className="text-center">
-              <p className="text-3xl font-black tabular-nums leading-none">
-                {Math.round(primaryData.calories)}
-              </p>
-              <p className="text-sm text-muted-foreground mt-1.5">
-                {primaryLabel}
-              </p>
-            </div>
-          </div>
+        <div className="w-44 shrink-0">
+          <CalorieRing
+            consumed={consumed.calories}
+            target={targets.calories}
+            view={view}
+            primaryValue={primaryData.calories}
+            primaryLabel={primaryLabel}
+          />
         </div>
 
         <div className="flex-1 text-center">
@@ -94,7 +146,7 @@ export function NutritionSection({ consumed, targets }: Props) {
       </div>
 
       <div className="flex justify-center mt-6">
-        <Tabs value={view} onValueChange={(v) => setView(v as View)}>
+        <Tabs value={view} onValueChange={(v) => handleViewChange(v as View)}>
           <TabsList className="rounded-full px-1">
             <TabsTrigger value="consumed" className="rounded-full px-6">
               Consumed

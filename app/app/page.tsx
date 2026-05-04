@@ -8,8 +8,15 @@ export default async function DashboardPage() {
   const session = await getSession()
   if (!session) redirect("/")
 
-  const { today, timezone, consumed, targets, energyBalance, goalProgress } =
-    await getDashboardData(session.user.id)
+  const {
+    today,
+    timezone,
+    caloriePreference,
+    consumed,
+    targets,
+    energyBalance,
+    goalProgress,
+  } = await getDashboardData(session.user.id)
 
   const dateLabel = new Intl.DateTimeFormat("en-GB", {
     timeZone: timezone,
@@ -32,14 +39,17 @@ export default async function DashboardPage() {
       <div className="px-5 mb-2">
         <p className="text-lg font-bold">Daily Nutrition</p>
       </div>
-      <NutritionSection consumed={consumed} targets={targets} />
+      <NutritionSection
+        consumed={consumed}
+        targets={targets}
+        initialPreference={caloriePreference}
+      />
 
       <div className="h-px bg-border mx-5 mt-6" />
 
       <InsightsSection
         energyBalance={energyBalance}
         goalProgress={goalProgress}
-        targetCalories={targets.calories}
       />
 
       <p className="text-center text-xs text-muted-foreground/40 mt-8 pb-2">

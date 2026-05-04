@@ -40,9 +40,12 @@ type ActivePlan = {
   startDate: string | null
 }
 
+export type CaloriePreference = "consumed" | "remaining"
+
 export type DashboardData = {
   today: string
   timezone: string
+  caloriePreference: CaloriePreference
   consumed: DailyMacros
   targets: NutritionTargets
   energyBalance: EnergyBalancePoint[]
@@ -209,9 +212,11 @@ function computeGoalProgress(
 export async function getDashboardData(userId: string): Promise<DashboardData> {
   const profile = await db.query.userProfiles.findFirst({
     where: eq(userProfiles.userId, userId),
-    columns: { timezone: true },
+    columns: { timezone: true, caloriePreference: true },
   })
   const timezone = profile?.timezone ?? "UTC"
+  const caloriePreference: CaloriePreference =
+    profile?.caloriePreference ?? "consumed"
   const today = toIsoDate(new Date(), timezone)
 
   const [consumed, { targets, startDate }, energyBalanceFromSummaries] =
@@ -245,5 +250,13 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
     planDays
   )
 
-  return { today, timezone, consumed, targets, energyBalance, goalProgress }
+  return {
+    today,
+    timezone,
+    caloriePreference,
+    consumed,
+    targets,
+    energyBalance,
+    goalProgress,
+  }
 }

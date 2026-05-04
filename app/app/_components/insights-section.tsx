@@ -5,14 +5,9 @@ import type { EnergyBalancePoint, GoalProgress } from "@/lib/queries/dashboard"
 type Props = {
   energyBalance: EnergyBalancePoint[]
   goalProgress: GoalProgress
-  targetCalories: number | null
 }
 
-export function InsightsSection({
-  energyBalance,
-  goalProgress,
-  targetCalories,
-}: Props) {
+export function InsightsSection({ energyBalance, goalProgress }: Props) {
   const { daysTracked, daysOnTarget, totalDays } = goalProgress
   const adherencePct =
     daysTracked > 0 ? Math.round((daysOnTarget / daysTracked) * 100) : 0
@@ -21,19 +16,24 @@ export function InsightsSection({
     (acc, p) => acc ?? p.tdee,
     null
   )
-  const goalLine = latestTdee ?? targetCalories
+  const goalLine = latestTdee
 
   const maxConsumed = Math.max(...energyBalance.map((p) => p.consumed), 1)
-  const goalLinePct =
-    goalLine != null ? Math.min((goalLine / maxConsumed) * 100, 100) : null
-
-  const daysWithTdee = energyBalance.filter(
-    (p) => p.tdee != null && p.consumed > 0
+  const maxTdee = Math.max(
+    ...energyBalance.map((point) => point.tdee ?? latestTdee ?? 0),
+    1
   )
-  const weeklyNet =
-    daysWithTdee.length > 0
+  const graphScale = Math.max(maxConsumed, maxTdee, 1)
+  const goalLinePct =
+    goalLine != null ? Math.min((goalLine / graphScale) * 100, 100) : null
+
+  const weeklyBalance =
+    latestTdee != null
       ? Math.round(
-          daysWithTdee.reduce((sum, p) => sum + p.consumed - (p.tdee ?? 0), 0)
+          energyBalance.reduce(
+            (sum, point) => sum + (point.tdee ?? latestTdee) - point.consumed,
+            0
+          )
         )
       : null
 
@@ -87,12 +87,17 @@ export function InsightsSection({
           <div className="relative h-7">
             <div className="absolute inset-0 flex items-end gap-0.5">
               {energyBalance.map((point) => {
-                const heightPct = (point.consumed / maxConsumed) * 100
-                const isOver = point.tdee != null && point.consumed > point.tdee
+                const heightPct = Math.min(
+                  (point.consumed / graphScale) * 100,
+                  100
+                )
+                const comparisonLine = point.tdee ?? latestTdee
+                const isOver =
+                  comparisonLine != null && point.consumed > comparisonLine
                 return (
                   <div
                     key={point.date}
-                    className="flex-1 rounded-sm"
+                    className="flex-1 rounded-t-xs"
                     style={{
                       height: `${Math.max(heightPct, 6)}%`,
                       backgroundColor: isOver
@@ -111,15 +116,17 @@ export function InsightsSection({
             )}
           </div>
           <div className="border-t border-border/50 pt-2 flex items-center justify-between">
-            {weeklyNet != null ? (
-              <p
-                className="text-sm font-semibold tabular-nums"
-                style={{
-                  color: weeklyNet > 0 ? "rgb(249 115 22)" : "rgb(34 197 94)",
-                }}
-              >
-                {Math.abs(weeklyNet).toLocaleString()} kcal{" "}
-                {weeklyNet > 0 ? "surplus" : "deficit"}
+            {weeklyBalance != null ? (
+              <p className="text-sm font-semibold tabular-nums">
+                {Math.abs(weeklyBalance).toLocaleString()}{" "}
+                <span className="text-xs font-medium text-muted-foreground">
+                  kcal{" "}
+                  {weeklyBalance === 0
+                    ? "on target"
+                    : weeklyBalance < 0
+                      ? "surplus"
+                      : "deficit"}
+                </span>
               </p>
             ) : (
               <p className="text-sm font-semibold text-muted-foreground">
