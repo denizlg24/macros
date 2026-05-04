@@ -4,6 +4,7 @@ import { getRequiredSession } from "@/lib/api/session"
 import { foodSearchParamsSchema } from "@/lib/foods/contracts"
 import { toFoodSearchItem } from "@/lib/foods/service"
 import { searchNutritionFoods } from "@/lib/foods/source"
+import { toNutritionSourceErrorResponse } from "../_lib/source-error-response"
 
 export async function GET(request: Request) {
   const { session, response } = await getRequiredSession()
@@ -28,10 +29,14 @@ export async function GET(request: Request) {
     )
   }
 
-  const sourceItems = await searchNutritionFoods(parsed.data)
+  try {
+    const sourceItems = await searchNutritionFoods(parsed.data)
 
-  return NextResponse.json({
-    items: sourceItems.map(toFoodSearchItem),
-    fetchedAt: new Date().toISOString(),
-  })
+    return NextResponse.json({
+      items: sourceItems.map(toFoodSearchItem),
+      fetchedAt: new Date().toISOString(),
+    })
+  } catch (error) {
+    return toNutritionSourceErrorResponse(error)
+  }
 }

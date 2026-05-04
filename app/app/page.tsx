@@ -50,7 +50,6 @@ export default async function DashboardPage() {
       <InsightsSection
         energyBalance={energyBalance}
         goalProgress={goalProgress}
-        targetCalories={targets.calories}
       />
 
       <p className="text-center text-xs text-muted-foreground/40 mt-8 pb-2">

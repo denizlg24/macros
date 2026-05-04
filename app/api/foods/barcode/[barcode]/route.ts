@@ -7,6 +7,7 @@ import {
   toFoodSearchItem,
 } from "@/lib/foods/service"
 import { getNutritionFoodByBarcode } from "@/lib/foods/source"
+import { toNutritionSourceErrorResponse } from "../../_lib/source-error-response"
 
 const paramsSchema = z.object({ barcode: z.string().trim().min(1).max(128) })
 
@@ -26,15 +27,19 @@ export async function GET(
     return NextResponse.json({ error: "Invalid barcode" }, { status: 400 })
   }
 
-  const summary = await getNutritionFoodByBarcode(parsed.data.barcode)
-  const result = await ensureExternalFoodSnapshot(summary.id, summary)
+  try {
+    const summary = await getNutritionFoodByBarcode(parsed.data.barcode)
+    const result = await ensureExternalFoodSnapshot(summary.id, summary)
 
-  return NextResponse.json({
-    item: toFoodSearchItem(result.summary),
-    nutrition: result.nutrition,
-    localFoodId: result.foodId,
-    snapshotId: result.snapshotId,
-    createdSnapshot: result.createdSnapshot,
-    fetchedAt: new Date().toISOString(),
-  })
+    return NextResponse.json({
+      item: toFoodSearchItem(result.summary),
+      nutrition: result.nutrition,
+      localFoodId: result.foodId,
+      snapshotId: result.snapshotId,
+      createdSnapshot: result.createdSnapshot,
+      fetchedAt: new Date().toISOString(),
+    })
+  } catch (error) {
+    return toNutritionSourceErrorResponse(error)
+  }
 }

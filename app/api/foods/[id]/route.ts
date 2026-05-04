@@ -6,6 +6,7 @@ import {
   ensureExternalFoodSnapshot,
   toFoodSearchItem,
 } from "@/lib/foods/service"
+import { toNutritionSourceErrorResponse } from "../_lib/source-error-response"
 
 const paramsSchema = z.object({ id: z.uuid() })
 
@@ -25,14 +26,18 @@ export async function GET(
     return NextResponse.json({ error: "Invalid food id" }, { status: 400 })
   }
 
-  const result = await ensureExternalFoodSnapshot(parsed.data.id)
+  try {
+    const result = await ensureExternalFoodSnapshot(parsed.data.id)
 
-  return NextResponse.json({
-    item: toFoodSearchItem(result.summary),
-    nutrition: result.nutrition,
-    localFoodId: result.foodId,
-    snapshotId: result.snapshotId,
-    createdSnapshot: result.createdSnapshot,
-    fetchedAt: new Date().toISOString(),
-  })
+    return NextResponse.json({
+      item: toFoodSearchItem(result.summary),
+      nutrition: result.nutrition,
+      localFoodId: result.foodId,
+      snapshotId: result.snapshotId,
+      createdSnapshot: result.createdSnapshot,
+      fetchedAt: new Date().toISOString(),
+    })
+  } catch (error) {
+    return toNutritionSourceErrorResponse(error)
+  }
 }

@@ -5,14 +5,9 @@ import type { EnergyBalancePoint, GoalProgress } from "@/lib/queries/dashboard"
 type Props = {
   energyBalance: EnergyBalancePoint[]
   goalProgress: GoalProgress
-  targetCalories: number | null
 }
 
-export function InsightsSection({
-  energyBalance,
-  goalProgress,
-  targetCalories,
-}: Props) {
+export function InsightsSection({ energyBalance, goalProgress }: Props) {
   const { daysTracked, daysOnTarget, totalDays } = goalProgress
   const adherencePct =
     daysTracked > 0 ? Math.round((daysOnTarget / daysTracked) * 100) : 0
@@ -21,19 +16,24 @@ export function InsightsSection({
     (acc, p) => acc ?? p.tdee,
     null
   )
-  const goalLine = latestTdee ?? targetCalories
+  const goalLine = latestTdee
 
   const maxConsumed = Math.max(...energyBalance.map((p) => p.consumed), 1)
-  const graphScale =
-    targetCalories != null && targetCalories > 0 ? targetCalories : maxConsumed
+  const maxTdee = Math.max(
+    ...energyBalance.map((point) => point.tdee ?? latestTdee ?? 0),
+    1
+  )
+  const graphScale = Math.max(maxConsumed, maxTdee, 1)
   const goalLinePct =
     goalLine != null ? Math.min((goalLine / graphScale) * 100, 100) : null
 
   const weeklyBalance =
-    targetCalories != null
+    latestTdee != null
       ? Math.round(
-          targetCalories * 7 -
-            energyBalance.reduce((sum, point) => sum + point.consumed, 0)
+          energyBalance.reduce(
+            (sum, point) => sum + (point.tdee ?? latestTdee) - point.consumed,
+            0
+          )
         )
       : null
 
@@ -91,7 +91,7 @@ export function InsightsSection({
                   (point.consumed / graphScale) * 100,
                   100
                 )
-                const comparisonLine = point.tdee ?? targetCalories
+                const comparisonLine = point.tdee ?? latestTdee
                 const isOver =
                   comparisonLine != null && point.consumed > comparisonLine
                 return (

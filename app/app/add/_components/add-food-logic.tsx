@@ -1159,15 +1159,31 @@ export function AddFoodLogic({
   }, [])
 
   const logAllPending = useCallback(async () => {
-    const committedToday = pendingFoods
-      .filter((food) => food.input.logDate === calorieSummary.today)
-      .reduce((sum, food) => sum + food.calories, 0)
-    for (const pf of pendingFoods) {
-      await logic.logFood(pf.input)
+    let committedToday = 0
+    let remainingFoods: PendingFood[] = []
+
+    for (const [index, pf] of pendingFoods.entries()) {
+      const entry = await logic.logFood(pf.input)
+
+      if (!entry) {
+        remainingFoods = pendingFoods.slice(index)
+        break
+      }
+
+      if (pf.input.logDate === calorieSummary.today) {
+        committedToday += pf.calories
+      }
     }
-    setExtraConsumed((prev) => prev + committedToday)
-    setPendingFoods([])
-    setPendingSheetOpen(false)
+
+    if (committedToday > 0) {
+      setExtraConsumed((prev) => prev + committedToday)
+    }
+
+    setPendingFoods(remainingFoods)
+
+    if (remainingFoods.length === 0) {
+      setPendingSheetOpen(false)
+    }
   }, [pendingFoods, logic.logFood, calorieSummary.today])
 
   const fromHistory = useMemo(() => {

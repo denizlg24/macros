@@ -6,6 +6,7 @@ import {
   ensureExternalFoodSnapshot,
   toFoodSearchItem,
 } from "@/lib/foods/service"
+import { getNutritionSourceStatus } from "@/lib/foods/source"
 
 export async function POST(request: Request) {
   const { session, response } = await getRequiredSession()
@@ -24,20 +25,41 @@ export async function POST(request: Request) {
     )
   }
 
-  const results = await Promise.all(
+  const settledResults = await Promise.all(
     parsed.data.itemIds.map(async (itemId) => {
-      const result = await ensureExternalFoodSnapshot(itemId)
-      return {
-        item: toFoodSearchItem(result.summary),
-        localFoodId: result.foodId,
-        snapshotId: result.snapshotId,
-        createdSnapshot: result.createdSnapshot,
+      try {
+        const result = await ensureExternalFoodSnapshot(itemId)
+        return {
+          ok: true as const,
+          value: {
+            item: toFoodSearchItem(result.summary),
+            localFoodId: result.foodId,
+            snapshotId: result.snapshotId,
+            createdSnapshot: result.createdSnapshot,
+          },
+        }
+      } catch (error) {
+        return {
+          ok: false as const,
+          value: {
+            itemId,
+            status: getNutritionSourceStatus(error),
+          },
+        }
       }
     })
   )
 
+  const results = settledResults
+    .filter((result) => result.ok)
+    .map((result) => result.value)
+  const failures = settledResults
+    .filter((result) => !result.ok)
+    .map((result) => result.value)
+
   return NextResponse.json({
     items: results,
+    failures,
     fetchedAt: new Date().toISOString(),
   })
 }

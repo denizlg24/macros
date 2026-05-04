@@ -1,7 +1,7 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { useState, useTransition } from "react"
+import { useEffect, useRef, useState, useTransition } from "react"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type {
   CaloriePreference,
@@ -32,23 +32,49 @@ export function NutritionSection({
   const router = useRouter()
   const [view, setView] = useState<View>(initialPreference)
   const [, startTransition] = useTransition()
+  const saveRequestSeq = useRef(0)
+  const saveController = useRef<AbortController | null>(null)
+
+  useEffect(() => {
+    return () => saveController.current?.abort()
+  }, [])
 
   function handleViewChange(next: View) {
     if (next === view) return
     setView(next)
-    startTransition(() => {
-      fetch("/api/profile/preferences", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ caloriePreference: next }),
-      })
-        .then((response) => {
-          if (response.ok) router.refresh()
-        })
-        .catch((error) => {
-          console.error("Failed to persist calorie preference", error)
-        })
+
+    const requestId = saveRequestSeq.current + 1
+    saveRequestSeq.current = requestId
+    saveController.current?.abort()
+
+    const controller = new AbortController()
+    saveController.current = controller
+
+    fetch("/api/profile/preferences", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ caloriePreference: next }),
+      signal: controller.signal,
     })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error(`Request failed with ${response.status}`)
+        }
+
+        if (saveRequestSeq.current !== requestId) {
+          return
+        }
+
+        startTransition(() => {
+          router.refresh()
+        })
+      })
+      .catch((error) => {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return
+        }
+        console.error("Failed to persist calorie preference", error)
+      })
   }
 
   const remaining: DailyMacros = {
