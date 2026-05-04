@@ -31,7 +31,10 @@ function buildUrl(path: string, params?: URLSearchParams) {
 
 async function fetchSourceJson(url: URL) {
   const response = await fetch(url, {
-    headers: { accept: "application/json" },
+    headers: {
+      accept: "application/json",
+      "x-api-key": process.env.NUTRITION_API_KEY ?? "",
+    },
     cache: "no-store",
   })
 

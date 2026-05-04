@@ -8,6 +8,8 @@ import {
   Flame,
   Plus,
   Search as SearchIcon,
+  Trash2,
+  Utensils,
   X,
 } from "lucide-react"
 import Link from "next/link"
@@ -49,6 +51,7 @@ import {
   putCachedFoodSearch,
   updateCachedFoodItems,
 } from "../_lib/food-search-cache"
+import { FoodDetailDrawer, type FoodSummary } from "./food-detail-drawer"
 
 interface FoodSearchState {
   query: string
@@ -323,6 +326,24 @@ function fmtMacro(value: number | null) {
   return Math.round(value).toString()
 }
 
+function fmtServingInput(value: number) {
+  if (!Number.isFinite(value) || value <= 0) return "1"
+  return Number(value.toFixed(2)).toString()
+}
+
+function parseServingInput(value: string) {
+  const parsed = Number.parseFloat(value)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1
+}
+
+function isHistoryItem(item: SearchableItem): item is FoodHistoryItem {
+  return "lastServingsConsumed" in item
+}
+
+function getDefaultServings(item: SearchableItem) {
+  return isHistoryItem(item) ? item.lastServingsConsumed : 1
+}
+
 function HighlightedText({ text, query }: { text: string; query: string }) {
   const trimmed = query.trim()
   if (!trimmed) return <span className="font-semibold">{text}</span>
@@ -355,16 +376,37 @@ function FoodRow({
   item,
   query,
   highlightOnly = false,
+  onSelect,
+  onQuickAdd,
 }: {
   item: SearchableItem
   query: string
   highlightOnly?: boolean
+  onSelect: (item: SearchableItem) => void
+  onQuickAdd: (item: SearchableItem, servingsConsumed: number) => void
 }) {
+  const [servings, setServings] = useState(() =>
+    fmtServingInput(getDefaultServings(item))
+  )
+  useEffect(() => {
+    setServings(fmtServingInput(getDefaultServings(item)))
+  }, [item])
+
+  const servingsConsumed = parseServingInput(servings)
   const displayName = item.brand ? `${item.name} By ${item.brand}` : item.name
+  const servingLabel =
+    isHistoryItem(item) && item.lastServingLabel
+      ? item.lastServingLabel
+      : item.servingLabel
+
   return (
-    <div className="flex items-center gap-3 border-b border-border/50 px-4 py-3">
-      <div className="flex-1 min-w-0">
-        <div className="text-[15px] leading-tight text-foreground">
+    <div className="flex w-full items-center gap-2 border-b border-border/50 px-4 py-3">
+      <button
+        type="button"
+        onClick={() => onSelect(item)}
+        className="min-w-0 flex-1 text-left"
+      >
+        <div className="text-[12px] leading-tight text-foreground truncate">
           {highlightOnly ? (
             <HighlightedText text={displayName} query={query} />
           ) : (
@@ -373,27 +415,63 @@ function FoodRow({
         </div>
         <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
           <span className="inline-flex items-center gap-1 tabular-nums">
-            {fmtMacro(item.caloriesPerServing)}
+            {fmtMacro(
+              item.caloriesPerServing == null
+                ? null
+                : item.caloriesPerServing * servingsConsumed
+            )}
             <Flame className="size-3" />
           </span>
           <span className="tabular-nums">
-            {fmtMacro(item.proteinPerServing)}P
+            {fmtMacro(
+              item.proteinPerServing == null
+                ? null
+                : item.proteinPerServing * servingsConsumed
+            )}
+            P
           </span>
-          <span className="tabular-nums">{fmtMacro(item.fatPerServing)}F</span>
           <span className="tabular-nums">
-            {fmtMacro(item.carbsPerServing)}C
+            {fmtMacro(
+              item.fatPerServing == null
+                ? null
+                : item.fatPerServing * servingsConsumed
+            )}
+            F
           </span>
-          {item.servingLabel ? (
+          <span className="tabular-nums">
+            {fmtMacro(
+              item.carbsPerServing == null
+                ? null
+                : item.carbsPerServing * servingsConsumed
+            )}
+            C
+          </span>
+          {servingLabel ? (
             <>
               <span>•</span>
-              <span className="truncate">{item.servingLabel}</span>
+              <span className="truncate">
+                {servingsConsumed === 1
+                  ? servingLabel
+                  : `${fmtServingInput(servingsConsumed)} ${servingLabel}`}
+              </span>
             </>
           ) : null}
         </div>
-      </div>
+      </button>
+      <input
+        type="number"
+        inputMode="decimal"
+        min="0.01"
+        step="0.1"
+        aria-label={`Servings for ${displayName}`}
+        value={servings}
+        onChange={(event) => setServings(event.target.value)}
+        className="h-8 w-14 shrink-0 rounded-full border border-border bg-muted px-2 text-center text-sm font-medium tabular-nums text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      />
       <button
         type="button"
-        aria-label="Add"
+        onClick={() => onQuickAdd(item, servingsConsumed)}
+        aria-label={`Quick add ${displayName}`}
         className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground"
       >
         <Plus className="size-4" />
@@ -408,12 +486,16 @@ function Section({
   query,
   highlightOnly = false,
   cap = 4,
+  onSelect,
+  onQuickAdd,
 }: {
   title: string
   items: SearchableItem[]
   query: string
   highlightOnly?: boolean
   cap?: number
+  onSelect: (item: SearchableItem) => void
+  onQuickAdd: (item: SearchableItem, servingsConsumed: number) => void
 }) {
   const [expanded, setExpanded] = useState(false)
   if (items.length === 0) return null
@@ -424,7 +506,7 @@ function Section({
   return (
     <section className="pt-2">
       <header className="flex items-baseline justify-between px-4 pt-2 pb-1">
-        <h3 className="text-lg font-semibold text-foreground">{title}</h3>
+        <h3 className="text-base font-semibold text-foreground">{title}</h3>
         {!expanded && remaining > 0 ? (
           <button
             type="button"
@@ -442,10 +524,50 @@ function Section({
             item={item}
             query={query}
             highlightOnly={highlightOnly}
+            onSelect={onSelect}
+            onQuickAdd={onQuickAdd}
           />
         ))}
       </div>
     </section>
+  )
+}
+
+function SearchLoadingSkeleton() {
+  return (
+    <div role="status" aria-live="polite" className="pt-2">
+      <VisuallyHidden>Searching foods</VisuallyHidden>
+      <div className="px-4 pt-2 pb-1">
+        <div className="h-5 w-20 animate-pulse rounded-full bg-muted/25" />
+      </div>
+      {Array.from({ length: 5 }, (_, index) => (
+        <div
+          key={index}
+          className="flex items-center gap-2 border-b border-border/30 px-4 py-3"
+        >
+          <div className="min-w-0 flex-1 space-y-2">
+            <div
+              className={cn(
+                "h-4 animate-pulse rounded-full bg-muted/25",
+                index % 3 === 0
+                  ? "w-11/12"
+                  : index % 3 === 1
+                    ? "w-8/12"
+                    : "w-10/12"
+              )}
+            />
+            <div className="flex items-center gap-2">
+              <div className="h-3 w-8 animate-pulse rounded-full bg-muted/20" />
+              <div className="h-3 w-6 animate-pulse rounded-full bg-muted/20" />
+              <div className="h-3 w-6 animate-pulse rounded-full bg-muted/20" />
+              <div className="h-3 w-14 animate-pulse rounded-full bg-muted/20" />
+            </div>
+          </div>
+          <div className="h-8 w-14 shrink-0 animate-pulse rounded-full bg-muted/20" />
+          <div className="size-8 shrink-0 animate-pulse rounded-full bg-muted/20" />
+        </div>
+      ))}
+    </div>
   )
 }
 
@@ -458,12 +580,12 @@ const NAV_TABS = [
 
 function CaloriePill({
   consumed,
+  pending,
   target,
-  fillRatio,
 }: {
   consumed: number
+  pending: number
   target: number | null
-  fillRatio: number
 }) {
   const W = 98
   const H = 38
@@ -474,9 +596,14 @@ function CaloriePill({
   const rx = rh / 2
 
   const perimeter = 2 * (rw - rh) + Math.PI * rh
-
   const startOffset = rw / 2 - rx
+
+  const total = consumed + pending
+  const fillRatio = target != null && target > 0 ? consumed / target : 0
+  const pendingRatio = target != null && target > 0 ? pending / target : 0
   const fillLength = Math.min(fillRatio, 1) * perimeter
+  const pendingFillLength =
+    Math.min(pendingRatio, Math.max(0, 1 - fillRatio)) * perimeter
   const targetLabel = target != null ? Math.round(target) : "—"
 
   return (
@@ -521,10 +648,25 @@ function CaloriePill({
             strokeLinecap="round"
           />
         )}
+        {pendingFillLength > 0 && (
+          <rect
+            x={p}
+            y={p}
+            width={rw}
+            height={rh}
+            rx={rx}
+            fill="none"
+            stroke="#93c5fd"
+            strokeWidth={SW}
+            strokeDasharray={`${pendingFillLength} ${perimeter}`}
+            strokeDashoffset={-(startOffset + fillLength)}
+            strokeLinecap="round"
+          />
+        )}
       </svg>
       <div className="absolute inset-0 flex items-center justify-center">
         <span className="text-xs font-medium tabular-nums text-foreground whitespace-nowrap">
-          {Math.round(consumed)} / {targetLabel}
+          {Math.round(total)} / {targetLabel}
         </span>
       </div>
     </div>
@@ -627,6 +769,9 @@ function HeaderChips({
   onDateChange,
   onHourChange,
   calorieSummary,
+  pendingCount,
+  pendingCalories,
+  onViewPending,
 }: {
   selectedDate: Date
   selectedHour: number
@@ -634,6 +779,9 @@ function HeaderChips({
   onDateChange: (date: Date) => void
   onHourChange: (hour: number) => void
   calorieSummary: DailyCalorieSummary
+  pendingCount: number
+  pendingCalories: number
+  onViewPending: () => void
 }) {
   const [timeDrawerOpen, setTimeDrawerOpen] = useState(false)
   const { consumed, target } = calorieSummary
@@ -658,9 +806,6 @@ function HeaderChips({
     if (d.getTime() === todayDate.getTime()) return "Today"
     return d.toLocaleDateString("en-US", { weekday: "short", day: "numeric" })
   }
-
-  const fillRatio =
-    target != null && target > 0 ? Math.min(consumed / target, 1) : 0
 
   return (
     <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-3 pt-3 pb-2">
@@ -720,9 +865,25 @@ function HeaderChips({
       <div className="flex justify-center">
         <CaloriePill
           consumed={consumed}
+          pending={pendingCalories}
           target={target}
-          fillRatio={fillRatio}
         />
+      </div>
+
+      <div className="flex justify-end">
+        {pendingCount > 0 && (
+          <button
+            type="button"
+            onClick={onViewPending}
+            className="relative flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground"
+            aria-label={`${pendingCount} foods staged`}
+          >
+            <Utensils className="size-4" />
+            <span className="absolute -right-0.5 -top-0.5 flex size-4 items-center justify-center rounded-full bg-blue-500 text-[9px] font-bold text-foreground">
+              {pendingCount}
+            </span>
+          </button>
+        )}
       </div>
     </div>
   )
@@ -776,6 +937,133 @@ function dedupeById<T extends { id: string }>(items: T[]) {
   return out
 }
 
+type PendingFood = {
+  uid: string
+  food: FoodSummary
+  input: LogFoodInput
+  calories: number
+}
+
+function foodColor(name: string): string {
+  let h = 0
+  for (let i = 0; i < name.length; i++) {
+    h = ((h << 5) - h + name.charCodeAt(i)) & 0x7fffffff
+  }
+  return `hsl(${h % 360}, 55%, 40%)`
+}
+
+function foodInitials(name: string): string {
+  const words = name.trim().split(/\s+/).filter(Boolean)
+  if (!words.length) return "?"
+  if (words.length === 1) return name.slice(0, 2).toUpperCase()
+  return (words[0]![0]! + words[1]![0]!).toUpperCase()
+}
+
+function PendingFoodsSheet({
+  open,
+  onClose,
+  pendingFoods,
+  onRemove,
+  onCommit,
+  isLogging,
+}: {
+  open: boolean
+  onClose: () => void
+  pendingFoods: PendingFood[]
+  onRemove: (uid: string) => void
+  onCommit: () => void
+  isLogging: boolean
+}) {
+  const totalCalories = pendingFoods.reduce((s, f) => s + f.calories, 0)
+
+  return (
+    <Drawer open={open} onOpenChange={(o) => !o && onClose()}>
+      <DrawerContent>
+        <VisuallyHidden>
+          <DrawerTitle>Staged foods</DrawerTitle>
+          <DrawerDescription>
+            Review and commit your staged food entries.
+          </DrawerDescription>
+        </VisuallyHidden>
+        <div className="flex items-center justify-between px-4 pt-4 pb-2">
+          <p className="text-sm font-semibold text-foreground">
+            {pendingFoods.length} food{pendingFoods.length !== 1 ? "s" : ""}{" "}
+            staged
+          </p>
+          <span className="text-xs tabular-nums text-muted-foreground">
+            {Math.round(totalCalories)} kcal total
+          </span>
+        </div>
+        <div className="max-h-[55dvh] overflow-y-auto">
+          {pendingFoods.map((pf) => {
+            const initials = foodInitials(pf.food.name)
+            const color = foodColor(pf.food.name)
+            const displayName = pf.food.brand
+              ? `${pf.food.name} By ${pf.food.brand}`
+              : pf.food.name
+            return (
+              <div
+                key={pf.uid}
+                className="flex items-center gap-3 border-b border-border/50 px-4 py-3"
+              >
+                <div
+                  className="flex size-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-foreground"
+                  style={{ backgroundColor: color }}
+                >
+                  {initials}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-foreground">
+                    {displayName}
+                  </p>
+                  <p className="text-xs text-muted-foreground tabular-nums">
+                    {Math.round(pf.calories)} kcal
+                    {" · "}
+                    {pf.input.servingsConsumed.toFixed(
+                      pf.input.servingsConsumed % 1 === 0 ? 0 : 1
+                    )}{" "}
+                    serving
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onRemove(pf.uid)}
+                  aria-label="Remove"
+                  className="flex size-8 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:text-destructive"
+                >
+                  <Trash2 className="size-4" />
+                </button>
+              </div>
+            )
+          })}
+        </div>
+        <div
+          className="px-3 py-3"
+          style={{ paddingBottom: "max(env(safe-area-inset-bottom), 0.75rem)" }}
+        >
+          <button
+            type="button"
+            onClick={onCommit}
+            disabled={isLogging || pendingFoods.length === 0}
+            className="h-11 w-full rounded-2xl bg-foreground text-sm font-semibold text-background disabled:opacity-50"
+          >
+            {isLogging ? "Logging…" : "Log Foods"}
+          </button>
+        </div>
+      </DrawerContent>
+    </Drawer>
+  )
+}
+
+function inferMealType(
+  hour: number
+): "breakfast" | "lunch" | "dinner" | "snack" {
+  if (hour >= 5 && hour < 11) return "breakfast"
+  if (hour >= 11 && hour < 16) return "lunch"
+  if (hour >= 17 && hour < 22) return "dinner"
+  return "snack"
+}
+
 export function AddFoodLogic({
   calorieSummary,
 }: {
@@ -784,6 +1072,10 @@ export function AddFoodLogic({
   const logic = useAddFoodLogic()
   const [draft, setDraft] = useState("")
   const inputRef = useRef<HTMLInputElement | null>(null)
+  const [selectedFood, setSelectedFood] = useState<FoodSummary | null>(null)
+  const [pendingFoods, setPendingFoods] = useState<PendingFood[]>([])
+  const [pendingSheetOpen, setPendingSheetOpen] = useState(false)
+  const [extraConsumed, setExtraConsumed] = useState(0)
   const todayDate = useMemo(
     () => dateFromIsoDate(calorieSummary.today),
     [calorieSummary.today]
@@ -809,6 +1101,74 @@ export function AddFoodLogic({
     getHourInTimezone(new Date(), calorieSummary.timezone)
   )
   const hourLabel = formatHourLabel(selectedHour)
+
+  const eatenAt = useMemo(() => {
+    const d = new Date(selectedDate)
+    d.setHours(selectedHour, 0, 0, 0)
+    return d.toISOString()
+  }, [selectedDate, selectedHour])
+
+  const logDate = useMemo(() => {
+    const d = selectedDate
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+  }, [selectedDate])
+
+  const pendingCalories = useMemo(
+    () =>
+      pendingFoods
+        .filter((food) => food.input.logDate === calorieSummary.today)
+        .reduce((sum, food) => sum + food.calories, 0),
+    [pendingFoods, calorieSummary.today]
+  )
+
+  const addToPending = useCallback(
+    (input: LogFoodInput, calories: number) => {
+      if (!selectedFood) return Promise.resolve()
+      setPendingFoods((prev) => [
+        ...prev,
+        { uid: crypto.randomUUID(), food: selectedFood, input, calories },
+      ])
+      return Promise.resolve()
+    },
+    [selectedFood]
+  )
+
+  const quickAddToPending = useCallback(
+    (item: SearchableItem, servingsConsumed: number) => {
+      setPendingFoods((prev) => [
+        ...prev,
+        {
+          uid: crypto.randomUUID(),
+          food: item,
+          input: {
+            sourceItemId: item.id,
+            servingsConsumed,
+            eatenAt,
+            logDate,
+            mealType: inferMealType(selectedHour),
+          },
+          calories: (item.caloriesPerServing ?? 0) * servingsConsumed,
+        },
+      ])
+    },
+    [eatenAt, logDate, selectedHour]
+  )
+
+  const removePending = useCallback((uid: string) => {
+    setPendingFoods((prev) => prev.filter((f) => f.uid !== uid))
+  }, [])
+
+  const logAllPending = useCallback(async () => {
+    const committedToday = pendingFoods
+      .filter((food) => food.input.logDate === calorieSummary.today)
+      .reduce((sum, food) => sum + food.calories, 0)
+    for (const pf of pendingFoods) {
+      await logic.logFood(pf.input)
+    }
+    setExtraConsumed((prev) => prev + committedToday)
+    setPendingFoods([])
+    setPendingSheetOpen(false)
+  }, [pendingFoods, logic.logFood, calorieSummary.today])
 
   const fromHistory = useMemo(() => {
     if (!hasQuery) return []
@@ -849,7 +1209,13 @@ export function AddFoodLogic({
           todayDate={todayDate}
           onDateChange={setSelectedDate}
           onHourChange={setSelectedHour}
-          calorieSummary={calorieSummary}
+          calorieSummary={{
+            ...calorieSummary,
+            consumed: calorieSummary.consumed + extraConsumed,
+          }}
+          pendingCount={pendingFoods.length}
+          pendingCalories={pendingCalories}
+          onViewPending={() => setPendingSheetOpen(true)}
         />
         <NavTabs />
       </div>
@@ -862,19 +1228,26 @@ export function AddFoodLogic({
               items={fromHistory}
               query={trimmed}
               highlightOnly
+              onSelect={setSelectedFood}
+              onQuickAdd={quickAddToPending}
             />
             <Section
               title="Common"
               items={common}
               query={trimmed}
               highlightOnly
+              onSelect={setSelectedFood}
+              onQuickAdd={quickAddToPending}
             />
             <Section
               title="Branded"
               items={branded}
               query={trimmed}
               highlightOnly
+              onSelect={setSelectedFood}
+              onQuickAdd={quickAddToPending}
             />
+            {logic.isSearching ? <SearchLoadingSkeleton /> : null}
             {!logic.isSearching &&
             fromHistory.length === 0 &&
             common.length === 0 &&
@@ -891,8 +1264,17 @@ export function AddFoodLogic({
               items={picks}
               query=""
               cap={5}
+              onSelect={setSelectedFood}
+              onQuickAdd={quickAddToPending}
             />
-            <Section title="Latest" items={latest} query="" cap={20} />
+            <Section
+              title="Latest"
+              items={latest}
+              query=""
+              cap={20}
+              onSelect={setSelectedFood}
+              onQuickAdd={quickAddToPending}
+            />
             {!logic.isLoadingHistory &&
             picks.length === 0 &&
             latest.length === 0 ? (
@@ -924,12 +1306,35 @@ export function AddFoodLogic({
           </div>
           <Button
             type="button"
-            className="h-11 shrink-0 rounded-full bg-foreground px-5 text-background hover:bg-foreground/90"
+            disabled={pendingFoods.length === 0 || logic.isLogging}
+            onClick={logAllPending}
+            className="h-11 shrink-0 rounded-full bg-foreground px-5 text-background hover:bg-foreground/90 disabled:opacity-40"
           >
             Log Foods
+            {pendingFoods.length > 0 ? ` (${pendingFoods.length})` : ""}
           </Button>
         </div>
       </div>
+
+      <FoodDetailDrawer
+        food={selectedFood}
+        calorieSummary={calorieSummary}
+        eatenAt={eatenAt}
+        logDate={logDate}
+        mealType={inferMealType(selectedHour)}
+        isLogging={false}
+        onClose={() => setSelectedFood(null)}
+        onLog={addToPending}
+      />
+
+      <PendingFoodsSheet
+        open={pendingSheetOpen}
+        onClose={() => setPendingSheetOpen(false)}
+        pendingFoods={pendingFoods}
+        onRemove={removePending}
+        onCommit={logAllPending}
+        isLogging={logic.isLogging}
+      />
     </div>
   )
 }

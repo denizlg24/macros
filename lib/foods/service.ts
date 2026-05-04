@@ -1,4 +1,4 @@
-import { and, desc, eq, isNotNull, sql } from "drizzle-orm"
+import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm"
 
 import { db } from "@/db/connection"
 import {
@@ -100,7 +100,15 @@ async function ensureNutrientDefinitionRows() {
   await db
     .insert(nutrientDefinitions)
     .values(nutrientDefinitionsInput)
-    .onConflictDoNothing()
+    .onConflictDoUpdate({
+      target: nutrientDefinitions.key,
+      set: {
+        label: sql`excluded.label`,
+        group: sql`excluded.group`,
+        unit: sql`excluded.unit`,
+        sortOrder: sql`excluded."sortOrder"`,
+      },
+    })
 }
 
 async function upsertExternalFood(summary: ExternalFoodSummary) {
@@ -294,7 +302,7 @@ export async function getFoodHistory(
     }
   }
 
-  return [...latestByFood.values()]
+  const orderedRows = [...latestByFood.values()]
     .sort((left, right) => {
       const leftHour = left.eatenAt
         ? getHourInTimezone(left.eatenAt, timezone)
@@ -312,7 +320,37 @@ export async function getFoodHistory(
       return (right.eatenAt?.getTime() ?? 0) - (left.eatenAt?.getTime() ?? 0)
     })
     .slice(0, limit)
-    .map((row) => ({
+
+  const nutrientRows =
+    orderedRows.length > 0
+      ? await db
+          .select({
+            entryId: foodLogEntryNutrients.entryId,
+            nutrientKey: foodLogEntryNutrients.nutrientKey,
+            amount: foodLogEntryNutrients.amount,
+          })
+          .from(foodLogEntryNutrients)
+          .where(
+            inArray(
+              foodLogEntryNutrients.entryId,
+              orderedRows.map((row) => row.entryId)
+            )
+          )
+      : []
+
+  const nutrientsByEntry = new Map<string, Record<string, number>>()
+  for (const row of nutrientRows) {
+    const nutrients = nutrientsByEntry.get(row.entryId) ?? {}
+    nutrients[row.nutrientKey] = Number(row.amount)
+    nutrientsByEntry.set(row.entryId, nutrients)
+  }
+
+  return orderedRows.map((row) => {
+    const servingsConsumed = Number(row.servingsConsumed)
+    const perServingScale = servingsConsumed > 0 ? servingsConsumed : 1
+    const nutrients = nutrientsByEntry.get(row.entryId) ?? {}
+
+    return {
       id: row.sourceItemId ?? row.localFoodId,
       localFoodId: row.localFoodId,
       lastLogEntryId: row.entryId,
@@ -320,21 +358,32 @@ export async function getFoodHistory(
       name: row.foodName,
       brand: row.brand,
       servingLabel: row.servingLabel,
-      caloriesPerServing: null,
-      proteinPerServing: null,
-      carbsPerServing: null,
-      fatPerServing: null,
+      caloriesPerServing:
+        nutrients["calories"] == null
+          ? null
+          : nutrients["calories"] / perServingScale,
+      proteinPerServing:
+        nutrients["protein"] == null
+          ? null
+          : nutrients["protein"] / perServingScale,
+      carbsPerServing:
+        nutrients["carbs"] == null
+          ? null
+          : nutrients["carbs"] / perServingScale,
+      fatPerServing:
+        nutrients["fat"] == null ? null : nutrients["fat"] / perServingScale,
       sourceUpdatedAt: null,
       rank: null,
       score: null,
       lastLoggedAt: row.eatenAt?.toISOString() ?? null,
       lastLogDate: row.logDate,
       lastMealType: row.mealType,
-      lastServingsConsumed: Number(row.servingsConsumed),
+      lastServingsConsumed: servingsConsumed,
       lastServingQuantity: Number(row.servingQuantity),
       lastServingUnit: row.servingUnit,
       lastServingLabel: row.servingLabel,
-    }))
+    }
+  })
 }
 
 async function refreshDailyNutritionSummary(

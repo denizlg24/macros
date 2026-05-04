@@ -15,6 +15,9 @@ export type DailyCalorieSummary = {
   consumed: number
   target: number | null
   preference: CaloriePreference
+  proteinTarget: number | null
+  carbsTarget: number | null
+  fatTarget: number | null
 }
 
 function toIsoDate(date: Date, timezone: string): string {
@@ -53,7 +56,12 @@ export async function getDailyCalorieSummary(
         eq(nutritionPlans.userId, userId),
         eq(nutritionPlans.status, "active")
       ),
-      columns: { calorieTarget: true },
+      columns: {
+        calorieTarget: true,
+        proteinTarget: true,
+        carbsTarget: true,
+        fatTarget: true,
+      },
     }),
   ])
 
@@ -65,5 +73,9 @@ export async function getDailyCalorieSummary(
     consumed: consumedRow ? Number(consumedRow.calories) : 0,
     target: plan?.calorieTarget != null ? Number(plan.calorieTarget) : null,
     preference,
+    proteinTarget:
+      plan?.proteinTarget != null ? Number(plan.proteinTarget) : null,
+    carbsTarget: plan?.carbsTarget != null ? Number(plan.carbsTarget) : null,
+    fatTarget: plan?.fatTarget != null ? Number(plan.fatTarget) : null,
   }
 }

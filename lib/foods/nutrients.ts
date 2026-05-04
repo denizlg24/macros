@@ -124,6 +124,26 @@ const gramKeys = new Set<NutrientKey>([
   "saturated",
   "transFat",
   "protein",
+  "cysteine",
+  "histidine",
+  "isoleucine",
+  "leucine",
+  "lysine",
+  "methionine",
+  "phenylalanine",
+  "threonine",
+  "tryptophan",
+  "tyrosine",
+  "valine",
+])
+
+const mcgKeys = new Set<NutrientKey>([
+  "a",
+  "b12",
+  "d",
+  "k",
+  "folate",
+  "selenium",
 ])
 
 function getNutrientGroup(key: NutrientKey) {
@@ -157,6 +177,9 @@ function getNutrientUnit(key: NutrientKey) {
   }
   if (gramKeys.has(key)) {
     return "g"
+  }
+  if (mcgKeys.has(key)) {
+    return "mcg"
   }
   return "mg"
 }
