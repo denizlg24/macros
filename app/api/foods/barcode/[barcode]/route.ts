@@ -27,7 +27,7 @@ export async function GET(
   }
 
   const summary = await getNutritionFoodByBarcode(parsed.data.barcode)
-  const result = await ensureExternalFoodSnapshot(summary.id)
+  const result = await ensureExternalFoodSnapshot(summary.id, summary)
 
   return NextResponse.json({
     item: toFoodSearchItem(result.summary),

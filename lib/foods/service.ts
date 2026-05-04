@@ -221,9 +221,12 @@ async function createFoodSnapshot(
   return snapshot.id
 }
 
-export async function ensureExternalFoodSnapshot(sourceItemId: string) {
+export async function ensureExternalFoodSnapshot(
+  sourceItemId: string,
+  preSummary?: ExternalFoodSummary
+) {
   const [summary, nutrition] = await Promise.all([
-    getNutritionFoodSummary(sourceItemId),
+    preSummary || getNutritionFoodSummary(sourceItemId),
     getNutritionFoodNutrition(sourceItemId),
   ])
   const foodId = await upsertExternalFood(summary)
