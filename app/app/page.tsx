@@ -40,6 +40,7 @@ export default async function DashboardPage() {
         <p className="text-lg font-bold">Daily Nutrition</p>
       </div>
       <NutritionSection
+        today={today}
         consumed={consumed}
         targets={targets}
         initialPreference={caloriePreference}

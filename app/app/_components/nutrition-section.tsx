@@ -3,6 +3,12 @@
 import { useRouter } from "next/navigation"
 import { useEffect, useRef, useState, useTransition } from "react"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import {
+  addMacros,
+  getOptimisticNutritionForDate,
+  pruneReconciledOptimisticNutritionEntries,
+  subscribeToOptimisticNutrition,
+} from "@/lib/optimistic-nutrition"
 import type {
   CaloriePreference,
   DailyMacros,
@@ -11,6 +17,7 @@ import type {
 import { CalorieRing } from "./calorie-ring"
 
 type Props = {
+  today: string
   consumed: DailyMacros
   targets: NutritionTargets
   initialPreference: CaloriePreference
@@ -25,6 +32,7 @@ const MACROS = [
 ] as const
 
 export function NutritionSection({
+  today,
   consumed,
   targets,
   initialPreference,
@@ -34,13 +42,29 @@ export function NutritionSection({
   const [, startTransition] = useTransition()
   const saveRequestSeq = useRef(0)
   const saveController = useRef<AbortController | null>(null)
+  const [optimisticConsumed, setOptimisticConsumed] = useState(() =>
+    addMacros(consumed, getOptimisticNutritionForDate(today))
+  )
 
   useEffect(() => {
     return () => saveController.current?.abort()
   }, [])
 
+  useEffect(() => {
+    function syncOptimisticConsumed() {
+      pruneReconciledOptimisticNutritionEntries(today, consumed.calories)
+      setOptimisticConsumed(
+        addMacros(consumed, getOptimisticNutritionForDate(today))
+      )
+    }
+
+    syncOptimisticConsumed()
+    return subscribeToOptimisticNutrition(syncOptimisticConsumed)
+  }, [consumed, today])
+
   function handleViewChange(next: View) {
     if (next === view) return
+    const previous = view
     setView(next)
 
     const requestId = saveRequestSeq.current + 1
@@ -73,19 +97,25 @@ export function NutritionSection({
         if (error instanceof DOMException && error.name === "AbortError") {
           return
         }
+        if (saveRequestSeq.current === requestId) {
+          setView(previous)
+        }
         console.error("Failed to persist calorie preference", error)
       })
   }
 
   const remaining: DailyMacros = {
-    calories: Math.max(0, (targets.calories ?? 0) - consumed.calories),
-    protein: Math.max(0, (targets.protein ?? 0) - consumed.protein),
-    carbs: Math.max(0, (targets.carbs ?? 0) - consumed.carbs),
-    fat: Math.max(0, (targets.fat ?? 0) - consumed.fat),
+    calories: Math.max(
+      0,
+      (targets.calories ?? 0) - optimisticConsumed.calories
+    ),
+    protein: Math.max(0, (targets.protein ?? 0) - optimisticConsumed.protein),
+    carbs: Math.max(0, (targets.carbs ?? 0) - optimisticConsumed.carbs),
+    fat: Math.max(0, (targets.fat ?? 0) - optimisticConsumed.fat),
   }
 
-  const primaryData = view === "consumed" ? consumed : remaining
-  const secondaryData = view === "consumed" ? remaining : consumed
+  const primaryData = view === "consumed" ? optimisticConsumed : remaining
+  const secondaryData = view === "consumed" ? remaining : optimisticConsumed
   const primaryLabel = view === "consumed" ? "Consumed" : "Remaining"
   const secondaryLabel = view === "consumed" ? "Remaining" : "Consumed"
 
@@ -101,7 +131,7 @@ export function NutritionSection({
 
         <div className="w-44 shrink-0">
           <CalorieRing
-            consumed={consumed.calories}
+            consumed={optimisticConsumed.calories}
             target={targets.calories}
             view={view}
             primaryValue={primaryData.calories}
