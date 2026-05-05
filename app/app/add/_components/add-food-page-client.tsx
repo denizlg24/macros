@@ -1,6 +1,9 @@
 "use client"
 
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useHydrated } from "@/hooks/use-hydrated"
 import { useDailyCalorieSummary } from "@/lib/app-cache/api"
 import { AddFoodLogic } from "./add-food-logic"
 
@@ -38,7 +41,32 @@ function AddFoodFallback() {
 }
 
 export function AddFoodPageClient() {
-  const { data } = useDailyCalorieSummary()
+  const hydrated = useHydrated()
+  const { data, error, isError, refetch } = useDailyCalorieSummary()
+
+  if (!hydrated) {
+    return <AddFoodFallback />
+  }
+
+  if (isError && !data) {
+    return (
+      <div className="flex h-dvh flex-col px-4 pt-4">
+        <Alert variant="destructive">
+          <AlertTitle>Could not load today&apos;s summary</AlertTitle>
+          <AlertDescription>
+            {error instanceof Error
+              ? error.message
+              : "Refresh your nutrition snapshot and try again."}
+          </AlertDescription>
+          <div className="mt-3">
+            <Button type="button" variant="outline" onClick={() => refetch()}>
+              Try again
+            </Button>
+          </div>
+        </Alert>
+      </div>
+    )
+  }
 
   if (!data) {
     return <AddFoodFallback />

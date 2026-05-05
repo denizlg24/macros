@@ -1,22 +1,10 @@
 "use client"
 
-import {
-  type QueryClient,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query"
-import { useEffect } from "react"
+import { type QueryClient, useQuery } from "@tanstack/react-query"
 import type { FoodHistoryItem } from "@/lib/foods/contracts"
 import type { DailyCalorieSummary } from "@/lib/queries/calorie-summary"
 import type { DashboardData } from "@/lib/queries/dashboard"
 import { queryKeys } from "./query-keys"
-
-interface BootstrapResponse {
-  dashboard: DashboardData
-  calorieSummary: DailyCalorieSummary
-  foodHistory: FoodHistoryItem[]
-  fetchedAt: string
-}
 
 interface DashboardResponse {
   dashboard: DashboardData
@@ -33,8 +21,8 @@ interface FoodHistoryResponse {
   fetchedAt: string
 }
 
-async function fetchJson<T>(url: string): Promise<T> {
-  const response = await fetch(url, { cache: "no-store" })
+async function fetchJson<T>(url: string, signal?: AbortSignal): Promise<T> {
+  const response = await fetch(url, { cache: "no-store", signal })
 
   if (!response.ok) {
     throw new Error(`Request failed with ${response.status}`)
@@ -43,36 +31,14 @@ async function fetchJson<T>(url: string): Promise<T> {
   return response.json() as Promise<T>
 }
 
-export function useAppBootstrap() {
-  const queryClient = useQueryClient()
-  const query = useQuery({
-    queryKey: queryKeys.bootstrap,
-    queryFn: () => fetchJson<BootstrapResponse>("/api/app/bootstrap"),
-    staleTime: 1000 * 60,
-  })
-
-  useEffect(() => {
-    if (!query.data) return
-
-    queryClient.setQueryData(queryKeys.dashboard, query.data.dashboard)
-    queryClient.setQueryData(
-      queryKeys.calorieSummary,
-      query.data.calorieSummary
-    )
-    queryClient.setQueryData(queryKeys.foodHistory(20), {
-      fetchedAt: query.data.fetchedAt,
-      items: query.data.foodHistory,
-    } satisfies FoodHistoryResponse)
-  }, [query.data, queryClient])
-
-  return query
-}
-
 export function useDashboardData() {
   return useQuery({
     queryKey: queryKeys.dashboard,
-    queryFn: async () => {
-      const body = await fetchJson<DashboardResponse>("/api/app/dashboard")
+    queryFn: async ({ signal }) => {
+      const body = await fetchJson<DashboardResponse>(
+        "/api/app/dashboard",
+        signal
+      )
       return body.dashboard
     },
   })
@@ -81,9 +47,10 @@ export function useDashboardData() {
 export function useDailyCalorieSummary() {
   return useQuery({
     queryKey: queryKeys.calorieSummary,
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const body = await fetchJson<CalorieSummaryResponse>(
-        "/api/app/calorie-summary"
+        "/api/app/calorie-summary",
+        signal
       )
       return body.calorieSummary
     },
@@ -93,8 +60,11 @@ export function useDailyCalorieSummary() {
 export function useFoodHistory(limit = 20) {
   return useQuery({
     queryKey: queryKeys.foodHistory(limit),
-    queryFn: () =>
-      fetchJson<FoodHistoryResponse>(`/api/foods/history?limit=${limit}`),
+    queryFn: ({ signal }) =>
+      fetchJson<FoodHistoryResponse>(
+        `/api/foods/history?limit=${limit}`,
+        signal
+      ),
   })
 }
 

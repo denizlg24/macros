@@ -33,7 +33,6 @@ export function TimezoneSync({ initialTimezone }: TimezoneSyncProps) {
       })
 
       if (response.ok) {
-        void queryClient.invalidateQueries({ queryKey: queryKeys.bootstrap })
         void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard })
         void queryClient.invalidateQueries({
           queryKey: queryKeys.calorieSummary,

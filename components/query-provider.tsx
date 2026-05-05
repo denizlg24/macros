@@ -8,7 +8,12 @@ import { createIndexedDbPersister } from "@/lib/app-cache/indexeddb-persister"
 const staleTime = 1000 * 60 * 5
 const gcTime = 1000 * 60 * 60 * 24 * 14
 
-export function QueryProvider({ children }: { children: React.ReactNode }) {
+interface QueryProviderProps {
+  children: React.ReactNode
+  userId: string
+}
+
+export function QueryProvider({ children, userId }: QueryProviderProps) {
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -16,7 +21,7 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
           queries: {
             gcTime,
             staleTime,
-            refetchOnMount: false,
+            refetchOnMount: true,
             refetchOnReconnect: "always",
             refetchOnWindowFocus: false,
             retry: 1,
@@ -24,13 +29,13 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
         },
       })
   )
-  const [persister] = useState(() => createIndexedDbPersister())
+  const [persister] = useState(() => createIndexedDbPersister(userId))
 
   return (
     <PersistQueryClientProvider
       client={queryClient}
       persistOptions={{
-        buster: "macros-app-cache-v1",
+        buster: `macros-app-cache-v1:${userId}`,
         maxAge: gcTime,
         persister,
       }}

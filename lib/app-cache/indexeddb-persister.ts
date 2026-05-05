@@ -8,7 +8,6 @@ import type {
 const dbName = "macros-app-query-cache"
 const dbVersion = 1
 const storeName = "clients"
-const clientKey = "app"
 
 interface StoredClient {
   key: string
@@ -73,28 +72,42 @@ function isStoredClient(value: unknown): value is StoredClient {
   )
 }
 
-export function createIndexedDbPersister(): Persister {
+export function createIndexedDbPersister(userId: string): Persister {
+  const clientKey = `app:${userId}`
+
   return {
     persistClient: async (client) => {
       if (typeof indexedDB === "undefined") return
 
-      await withStore("readwrite", (store) =>
-        store.put({ key: clientKey, client })
-      )
+      try {
+        await withStore("readwrite", (store) =>
+          store.put({ key: clientKey, client })
+        )
+      } catch {
+        return
+      }
     },
     restoreClient: async () => {
       if (typeof indexedDB === "undefined") return undefined
 
-      const stored = await withStore("readonly", (store) =>
-        store.get(clientKey)
-      )
+      try {
+        const stored = await withStore("readonly", (store) =>
+          store.get(clientKey)
+        )
 
-      return isStoredClient(stored) ? stored.client : undefined
+        return isStoredClient(stored) ? stored.client : undefined
+      } catch {
+        return undefined
+      }
     },
     removeClient: async () => {
       if (typeof indexedDB === "undefined") return
 
-      await withStore("readwrite", (store) => store.delete(clientKey))
+      try {
+        await withStore("readwrite", (store) => store.delete(clientKey))
+      } catch {
+        return
+      }
     },
   }
 }

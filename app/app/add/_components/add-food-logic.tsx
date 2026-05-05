@@ -272,9 +272,16 @@ export function useAddFoodLogic() {
   const historyItems = foodHistoryQuery.data?.items ?? []
   const isLoadingHistory = foodHistoryQuery.isPending
   const refetchHistory = foodHistoryQuery.refetch
+  const historyError =
+    foodHistoryQuery.isError && foodHistoryQuery.error instanceof Error
+      ? foodHistoryQuery.error.message
+      : foodHistoryQuery.isError
+        ? "Failed to load history"
+        : null
   return useMemo(
     () => ({
       ...state,
+      error: state.error ?? historyError,
       history: historyItems,
       isLoadingHistory,
       timePicks: historyItems.slice(0, 5),
@@ -287,6 +294,7 @@ export function useAddFoodLogic() {
     [
       state,
       historyItems,
+      historyError,
       isLoadingHistory,
       refetchHistory,
       searchFoods,
@@ -1434,6 +1442,13 @@ export function AddFoodLogic({
       </div>
 
       <div className="flex-1 overflow-y-auto overscroll-contain pb-24">
+        {logic.error ? (
+          <div className="px-4 py-3">
+            <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {logic.error}
+            </div>
+          </div>
+        ) : null}
         {hasQuery ? (
           <Fragment>
             <Section
@@ -1489,6 +1504,7 @@ export function AddFoodLogic({
               onQuickAdd={quickAddToPending}
             />
             {!logic.isLoadingHistory &&
+            !logic.error &&
             picks.length === 0 &&
             latest.length === 0 ? (
               <p className="px-4 py-8 text-center text-sm text-muted-foreground">

@@ -1,6 +1,9 @@
 "use client"
 
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useHydrated } from "@/hooks/use-hydrated"
 import { useDashboardData } from "@/lib/app-cache/api"
 import { InsightsSection } from "./insights-section"
 import { NutritionSection } from "./nutrition-section"
@@ -33,7 +36,33 @@ function DashboardFallback() {
 }
 
 export function DashboardClient() {
-  const { data } = useDashboardData()
+  const hydrated = useHydrated()
+  const { data, error, isError, refetch } = useDashboardData()
+
+  if (!hydrated) {
+    return <DashboardFallback />
+  }
+
+  if (isError && !data) {
+    return (
+      <div className="min-h-screen px-5 pt-6 pb-36">
+        <h1 className="mb-4 text-3xl font-black tracking-tight">DASHBOARD</h1>
+        <Alert variant="destructive">
+          <AlertTitle>Could not load dashboard</AlertTitle>
+          <AlertDescription>
+            {error instanceof Error
+              ? error.message
+              : "Refresh your nutrition snapshot and try again."}
+          </AlertDescription>
+          <div className="mt-3">
+            <Button type="button" variant="outline" onClick={() => refetch()}>
+              Try again
+            </Button>
+          </div>
+        </Alert>
+      </div>
+    )
+  }
 
   if (!data) {
     return <DashboardFallback />
