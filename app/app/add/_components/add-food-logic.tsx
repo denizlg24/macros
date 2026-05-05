@@ -130,8 +130,13 @@ function formatHourLabel(hour: number) {
 }
 
 function getSearchParams(query: string): FoodSearchParams | null {
+  const trimmed = query.trim()
+  if (!trimmed) {
+    return null
+  }
+
   const parsed = foodSearchParamsSchema.safeParse({
-    q: query.trim() || undefined,
+    q: trimmed,
     limit: 50,
   })
 
