@@ -1,8 +1,9 @@
 "use client"
 
-import { useRouter } from "next/navigation"
-import { useEffect, useRef, useState, useTransition } from "react"
+import { useQueryClient } from "@tanstack/react-query"
+import { useEffect, useRef, useState } from "react"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { setDashboardCaloriePreference } from "@/lib/app-cache/api"
 import {
   getOptimisticNutritionForDate,
   subscribeToOptimisticNutrition,
@@ -35,9 +36,8 @@ export function NutritionSection({
   targets,
   initialPreference,
 }: Props) {
-  const router = useRouter()
+  const queryClient = useQueryClient()
   const [view, setView] = useState<View>(initialPreference)
-  const [, startTransition] = useTransition()
   const saveRequestSeq = useRef(0)
   const saveController = useRef<AbortController | null>(null)
   const [optimisticConsumed, setOptimisticConsumed] = useState(() =>
@@ -47,6 +47,10 @@ export function NutritionSection({
   useEffect(() => {
     return () => saveController.current?.abort()
   }, [])
+
+  useEffect(() => {
+    setView(initialPreference)
+  }, [initialPreference])
 
   useEffect(() => {
     function syncOptimisticConsumed() {
@@ -84,9 +88,7 @@ export function NutritionSection({
           return
         }
 
-        startTransition(() => {
-          router.refresh()
-        })
+        setDashboardCaloriePreference(queryClient, next)
       })
       .catch((error) => {
         if (error instanceof DOMException && error.name === "AbortError") {

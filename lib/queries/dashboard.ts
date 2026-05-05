@@ -74,6 +74,28 @@ async function getDailyNutrition(
   userId: string,
   date: string
 ): Promise<DailyMacros> {
+  const summary = await db.query.dailyNutritionSummaries.findFirst({
+    where: and(
+      eq(dailyNutritionSummaries.userId, userId),
+      eq(dailyNutritionSummaries.logDate, date)
+    ),
+    columns: {
+      calories: true,
+      protein: true,
+      carbs: true,
+      fat: true,
+    },
+  })
+
+  if (summary) {
+    return {
+      calories: Number(summary.calories),
+      protein: Number(summary.protein),
+      carbs: Number(summary.carbs),
+      fat: Number(summary.fat),
+    }
+  }
+
   const [row] = await db
     .select({
       calories: sql<string>`coalesce(sum(${foodLogEntryNutrients.amount}) filter (where ${foodLogEntryNutrients.nutrientKey} = 'calories'), 0)`,

@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm"
 import { redirect } from "next/navigation"
+import { QueryProvider } from "@/components/query-provider"
 import { db } from "@/db/connection"
 import { userProfiles } from "@/db/schema"
 import { getSession } from "@/lib/session"
@@ -27,10 +28,10 @@ export default async function AppLayout({
   }
 
   return (
-    <>
+    <QueryProvider userId={session.user.id}>
       <TimezoneSync initialTimezone={userProfile.timezone} />
       {children}
       <DashboardHeader />
-    </>
+    </QueryProvider>
   )
 }
