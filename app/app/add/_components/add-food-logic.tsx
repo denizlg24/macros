@@ -1189,17 +1189,27 @@ export function AddFoodLogic({
   const [extraConsumed, setExtraConsumed] = useState(0)
   const [isCommitting, setIsCommitting] = useState(false)
   const commitInFlightRef = useRef(false)
+  const mountedRef = useRef(false)
   const todayDate = useMemo(
     () => dateFromIsoDate(calorieSummary.today),
     [calorieSummary.today]
   )
 
   useEffect(() => {
+    mountedRef.current = true
     const failedFoods = takeFailedPendingFoods()
-    if (failedFoods.length === 0) return
+    if (failedFoods.length === 0) {
+      return () => {
+        mountedRef.current = false
+      }
+    }
 
     setPendingFoods((prev) => [...failedFoods, ...prev])
     setPendingSheetOpen(true)
+
+    return () => {
+      mountedRef.current = false
+    }
   }, [])
 
   useEffect(() => {
@@ -1314,62 +1324,69 @@ export function AddFoodLogic({
     commitInFlightRef.current = true
     setIsCommitting(true)
 
-    const foodsToLog = pendingFoods
-    const optimisticToday = foodsToLog
-      .filter((food) => food.input.logDate === calorieSummary.today)
-      .reduce((sum, food) => sum + getPendingCalories(food), 0)
+    try {
+      const foodsToLog = pendingFoods
+      const optimisticToday = foodsToLog
+        .filter((food) => food.input.logDate === calorieSummary.today)
+        .reduce((sum, food) => sum + getPendingCalories(food), 0)
 
-    setPendingFoods([])
-    setPendingSheetOpen(false)
-    setExtraConsumed((prev) => prev + optimisticToday)
+      setPendingFoods([])
+      setPendingSheetOpen(false)
+      setExtraConsumed((prev) => prev + optimisticToday)
 
-    for (const food of foodsToLog) {
-      if (food.input.logDate !== calorieSummary.today) continue
+      for (const food of foodsToLog) {
+        if (food.input.logDate !== calorieSummary.today) continue
 
-      addOptimisticNutritionEntry({
-        id: food.uid,
-        logDate: calorieSummary.today,
-        macros: food.macros,
-      })
-    }
-
-    router.push("/app")
-
-    const failedFoods: PendingFood[] = []
-    let succeededCount = 0
-
-    for (const pf of foodsToLog) {
-      const result = await postFoodLog(pf.input).catch(() => null)
-
-      if (!result) {
-        failedFoods.push(pf)
-        continue
+        addOptimisticNutritionEntry({
+          id: food.uid,
+          logDate: calorieSummary.today,
+          macros: food.macros,
+        })
       }
 
-      succeededCount += 1
-      removeOptimisticNutritionEntries([
-        result.entry.clientMutationId ?? pf.uid,
-      ])
+      router.push("/app")
 
-      if (result.entry.logDate === calorieSummary.today) {
-        putConfirmedNutritionTotals(result.entry.logDate, result.totals)
+      const failedFoods: PendingFood[] = []
+      let succeededCount = 0
+
+      for (const pf of foodsToLog) {
+        const result = await postFoodLog(pf.input).catch(() => null)
+
+        if (!result) {
+          failedFoods.push(pf)
+          continue
+        }
+
+        succeededCount += 1
+        removeOptimisticNutritionEntries([
+          result.entry.clientMutationId ?? pf.uid,
+        ])
+
+        if (result.entry.logDate === calorieSummary.today) {
+          putConfirmedNutritionTotals(result.entry.logDate, result.totals)
+        }
       }
-    }
 
-    removeOptimisticNutritionEntries(failedFoods.map((food) => food.uid))
+      removeOptimisticNutritionEntries(failedFoods.map((food) => food.uid))
 
-    if (failedFoods.length > 0) {
-      saveFailedPendingFoods(failedFoods)
-      toast.error("Some foods were not logged", {
-        action: {
-          label: "Retry",
-          onClick: () => router.push("/app/add?retry=failed"),
-        },
-      })
-    }
+      if (failedFoods.length > 0) {
+        saveFailedPendingFoods(failedFoods)
+        toast.error("Some foods were not logged", {
+          action: {
+            label: "Retry",
+            onClick: () => router.push("/app/add?retry=failed"),
+          },
+        })
+      }
 
-    if (succeededCount > 0) {
-      router.refresh()
+      if (succeededCount > 0) {
+        router.refresh()
+      }
+    } finally {
+      commitInFlightRef.current = false
+      if (mountedRef.current) {
+        setIsCommitting(false)
+      }
     }
   }, [pendingFoods, calorieSummary.today, router])
 
