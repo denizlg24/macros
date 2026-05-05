@@ -430,10 +430,8 @@ async function refreshDailyNutritionSummary(
       "fat" = excluded."fat",
       "updatedAt" = now()
   `)
-}
 
-async function getDailySummaryMacros(userId: string, logDate: string) {
-  const summary = await db.query.dailyNutritionSummaries.findFirst({
+  const summary = await tx.query.dailyNutritionSummaries.findFirst({
     where: and(
       eq(dailyNutritionSummaries.userId, userId),
       eq(dailyNutritionSummaries.logDate, logDate)
@@ -466,7 +464,7 @@ export async function logExternalFood(
   const { foodId, snapshotId, summary, nutrition } =
     await ensureExternalFoodSnapshot(input.sourceItemId)
 
-  const entryId = await db.transaction(async (tx) => {
+  const logged = await db.transaction(async (tx) => {
     const [entry] = await tx
       .insert(foodLogEntries)
       .values({
@@ -500,19 +498,19 @@ export async function logExternalFood(
       await tx.insert(foodLogEntryNutrients).values(nutrientRows)
     }
 
-    await refreshDailyNutritionSummary(tx, userId, logDate)
+    const totals = await refreshDailyNutritionSummary(tx, userId, logDate)
 
-    return entry.id
+    return { entryId: entry.id, totals }
   })
 
   return {
-    entryId,
+    entryId: logged.entryId,
     clientMutationId: input.clientMutationId,
     foodId,
     snapshotId,
     logDate,
     eatenAt: eatenAt.toISOString(),
     mealType,
-    totals: await getDailySummaryMacros(userId, logDate),
+    totals: logged.totals,
   }
 }

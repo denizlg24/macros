@@ -1187,6 +1187,8 @@ export function AddFoodLogic({
   const [pendingFoods, setPendingFoods] = useState<PendingFood[]>([])
   const [pendingSheetOpen, setPendingSheetOpen] = useState(false)
   const [extraConsumed, setExtraConsumed] = useState(0)
+  const [isCommitting, setIsCommitting] = useState(false)
+  const commitInFlightRef = useRef(false)
   const todayDate = useMemo(
     () => dateFromIsoDate(calorieSummary.today),
     [calorieSummary.today]
@@ -1307,7 +1309,10 @@ export function AddFoodLogic({
   }, [])
 
   const logAllPending = useCallback(async () => {
-    if (pendingFoods.length === 0 || logic.isLogging) return
+    if (pendingFoods.length === 0 || commitInFlightRef.current) return
+
+    commitInFlightRef.current = true
+    setIsCommitting(true)
 
     const foodsToLog = pendingFoods
     const optimisticToday = foodsToLog
@@ -1366,7 +1371,7 @@ export function AddFoodLogic({
     if (succeededCount > 0) {
       router.refresh()
     }
-  }, [pendingFoods, logic.isLogging, calorieSummary.today, router])
+  }, [pendingFoods, calorieSummary.today, router])
 
   const fromHistory = useMemo(() => {
     if (!hasQuery) return []
@@ -1509,7 +1514,7 @@ export function AddFoodLogic({
           </div>
           <Button
             type="button"
-            disabled={pendingFoods.length === 0 || logic.isLogging}
+            disabled={pendingFoods.length === 0 || isCommitting}
             onClick={logAllPending}
             className="h-11 shrink-0 rounded-full bg-foreground px-5 text-background hover:bg-foreground/90 disabled:opacity-40"
           >
@@ -1536,7 +1541,7 @@ export function AddFoodLogic({
         pendingFoods={pendingFoods}
         onRemove={removePending}
         onCommit={logAllPending}
-        isLogging={logic.isLogging}
+        isLogging={isCommitting}
       />
     </div>
   )
