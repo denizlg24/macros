@@ -13,7 +13,7 @@ import {
   X,
 } from "lucide-react"
 import Link from "next/link"
-import { usePathname, useSearchParams } from "next/navigation"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import {
   type ChangeEvent,
   Fragment,
@@ -24,6 +24,8 @@ import {
   useRef,
   useState,
 } from "react"
+import { toast } from "sonner"
+import { z } from "zod"
 import { Button } from "@/components/ui/button"
 import {
   Drawer,
@@ -42,8 +44,15 @@ import {
   foodSearchParamsSchema,
   foodSearchResponseSchema,
   type LogFoodInput,
+  logFoodBodySchema,
   logFoodResponseSchema,
 } from "@/lib/foods/contracts"
+import {
+  addOptimisticNutritionEntry,
+  type OptimisticDailyMacros,
+  putConfirmedNutritionTotals,
+  removeOptimisticNutritionEntries,
+} from "@/lib/optimistic-nutrition"
 import type { DailyCalorieSummary } from "@/lib/queries/calorie-summary"
 import { cn } from "@/lib/utils"
 import {
@@ -73,6 +82,16 @@ async function readJsonResponse(response: Response) {
 
   const body: unknown = await response.json()
   return body
+}
+
+async function postFoodLog(input: LogFoodInput) {
+  const response = await fetch("/api/food-log/entries", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  })
+
+  return logFoodResponseSchema.parse(await readJsonResponse(response))
 }
 
 function getHourInTimezone(date: Date, timezone: string) {
@@ -265,34 +284,23 @@ export function useAddFoodLogic() {
     [revalidateCachedItems]
   )
 
-  const logFood = useCallback(
-    async (input: LogFoodInput) => {
-      setState((current) => ({ ...current, isLogging: true, error: null }))
+  const logFood = useCallback(async (input: LogFoodInput) => {
+    setState((current) => ({ ...current, isLogging: true, error: null }))
 
-      try {
-        const response = await fetch("/api/food-log/entries", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(input),
-        })
-        const body = logFoodResponseSchema.parse(
-          await readJsonResponse(response)
-        )
-        await loadHistory()
+    try {
+      const body = await postFoodLog(input)
 
-        setState((current) => ({ ...current, isLogging: false }))
-        return body.entry
-      } catch (error) {
-        setState((current) => ({
-          ...current,
-          isLogging: false,
-          error: error instanceof Error ? error.message : "Failed to log food",
-        }))
-        return null
-      }
-    },
-    [loadHistory]
-  )
+      setState((current) => ({ ...current, isLogging: false }))
+      return body
+    } catch (error) {
+      setState((current) => ({
+        ...current,
+        isLogging: false,
+        error: error instanceof Error ? error.message : "Failed to log food",
+      }))
+      return null
+    }
+  }, [])
 
   useEffect(() => {
     loadHistory()
@@ -941,7 +949,73 @@ type PendingFood = {
   uid: string
   food: FoodSummary
   input: LogFoodInput
-  calories: number
+  macros: OptimisticDailyMacros
+}
+
+const FAILED_PENDING_FOODS_KEY = "macros.failed-pending-foods.v1"
+const failedPendingFoodSchema = z.object({
+  uid: z.uuid(),
+  food: z.object({
+    id: z.uuid(),
+    name: z.string(),
+    brand: z.string().nullable().optional(),
+    servingLabel: z.string().nullable().optional(),
+    caloriesPerServing: z.number().nullable().optional(),
+    proteinPerServing: z.number().nullable().optional(),
+    fatPerServing: z.number().nullable().optional(),
+    carbsPerServing: z.number().nullable().optional(),
+  }),
+  input: logFoodBodySchema,
+  macros: z.object({
+    calories: z.number(),
+    protein: z.number(),
+    carbs: z.number(),
+    fat: z.number(),
+  }),
+})
+
+function getPendingCalories(food: PendingFood) {
+  return food.macros.calories
+}
+
+function readFailedPendingFoods(): PendingFood[] {
+  try {
+    const raw = window.sessionStorage.getItem(FAILED_PENDING_FOODS_KEY)
+    if (!raw) return []
+    const parsed: unknown = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter(
+      (food): food is PendingFood =>
+        failedPendingFoodSchema.safeParse(food).success
+    )
+  } catch {
+    return []
+  }
+}
+
+function takeFailedPendingFoods(): PendingFood[] {
+  const foods = readFailedPendingFoods()
+  if (foods.length === 0) return foods
+
+  try {
+    window.sessionStorage.removeItem(FAILED_PENDING_FOODS_KEY)
+  } catch {}
+
+  return foods
+}
+
+function saveFailedPendingFoods(foods: PendingFood[]) {
+  if (foods.length === 0) return
+
+  try {
+    const existing = readFailedPendingFoods()
+    window.sessionStorage.setItem(
+      FAILED_PENDING_FOODS_KEY,
+      JSON.stringify([...foods, ...existing])
+    )
+  } catch (error) {
+    console.warn("Failed to store failed food logs for retry", error)
+  }
 }
 
 function foodColor(name: string): string {
@@ -974,7 +1048,10 @@ function PendingFoodsSheet({
   onCommit: () => void
   isLogging: boolean
 }) {
-  const totalCalories = pendingFoods.reduce((s, f) => s + f.calories, 0)
+  const totalCalories = pendingFoods.reduce(
+    (s, f) => s + getPendingCalories(f),
+    0
+  )
 
   return (
     <Drawer open={open} onOpenChange={(o) => !o && onClose()}>
@@ -1017,7 +1094,7 @@ function PendingFoodsSheet({
                     {displayName}
                   </p>
                   <p className="text-xs text-muted-foreground tabular-nums">
-                    {Math.round(pf.calories)} kcal
+                    {Math.round(getPendingCalories(pf))} kcal
                     {" · "}
                     {pf.input.servingsConsumed.toFixed(
                       pf.input.servingsConsumed % 1 === 0 ? 0 : 1
@@ -1069,12 +1146,21 @@ export function AddFoodLogic({
 }: {
   calorieSummary: DailyCalorieSummary
 }) {
+  const router = useRouter()
   const logic = useAddFoodLogic()
   const searchParams = useSearchParams()
   const [draft, setDraft] = useState("")
   const inputRef = useRef<HTMLInputElement | null>(null)
   const containerRef = useRef<HTMLDivElement | null>(null)
   const routeFocusHandledRef = useRef(false)
+
+  useEffect(() => {
+    document.documentElement.classList.add("macros-add-food-scroll-lock")
+
+    return () => {
+      document.documentElement.classList.remove("macros-add-food-scroll-lock")
+    }
+  }, [])
 
   useEffect(() => {
     const vv = window.visualViewport
@@ -1101,10 +1187,30 @@ export function AddFoodLogic({
   const [pendingFoods, setPendingFoods] = useState<PendingFood[]>([])
   const [pendingSheetOpen, setPendingSheetOpen] = useState(false)
   const [extraConsumed, setExtraConsumed] = useState(0)
+  const [isCommitting, setIsCommitting] = useState(false)
+  const commitInFlightRef = useRef(false)
+  const mountedRef = useRef(false)
   const todayDate = useMemo(
     () => dateFromIsoDate(calorieSummary.today),
     [calorieSummary.today]
   )
+
+  useEffect(() => {
+    mountedRef.current = true
+    const failedFoods = takeFailedPendingFoods()
+    if (failedFoods.length === 0) {
+      return () => {
+        mountedRef.current = false
+      }
+    }
+
+    setPendingFoods((prev) => [...failedFoods, ...prev])
+    setPendingSheetOpen(true)
+
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
 
   useEffect(() => {
     const handle = setTimeout(() => {
@@ -1158,16 +1264,22 @@ export function AddFoodLogic({
     () =>
       pendingFoods
         .filter((food) => food.input.logDate === calorieSummary.today)
-        .reduce((sum, food) => sum + food.calories, 0),
+        .reduce((sum, food) => sum + getPendingCalories(food), 0),
     [pendingFoods, calorieSummary.today]
   )
 
   const addToPending = useCallback(
-    (input: LogFoodInput, calories: number) => {
+    (input: LogFoodInput, macros: OptimisticDailyMacros) => {
       if (!selectedFood) return Promise.resolve()
+      const clientMutationId = crypto.randomUUID()
       setPendingFoods((prev) => [
         ...prev,
-        { uid: crypto.randomUUID(), food: selectedFood, input, calories },
+        {
+          uid: clientMutationId,
+          food: selectedFood,
+          input: { ...input, clientMutationId },
+          macros,
+        },
       ])
       return Promise.resolve()
     },
@@ -1176,19 +1288,26 @@ export function AddFoodLogic({
 
   const quickAddToPending = useCallback(
     (item: SearchableItem, servingsConsumed: number) => {
+      const clientMutationId = crypto.randomUUID()
       setPendingFoods((prev) => [
         ...prev,
         {
-          uid: crypto.randomUUID(),
+          uid: clientMutationId,
           food: item,
           input: {
+            clientMutationId,
             sourceItemId: item.id,
             servingsConsumed,
             eatenAt,
             logDate,
             mealType: inferMealType(selectedHour),
           },
-          calories: (item.caloriesPerServing ?? 0) * servingsConsumed,
+          macros: {
+            calories: (item.caloriesPerServing ?? 0) * servingsConsumed,
+            protein: (item.proteinPerServing ?? 0) * servingsConsumed,
+            carbs: (item.carbsPerServing ?? 0) * servingsConsumed,
+            fat: (item.fatPerServing ?? 0) * servingsConsumed,
+          },
         },
       ])
     },
@@ -1200,32 +1319,76 @@ export function AddFoodLogic({
   }, [])
 
   const logAllPending = useCallback(async () => {
-    let committedToday = 0
-    let remainingFoods: PendingFood[] = []
+    if (pendingFoods.length === 0 || commitInFlightRef.current) return
 
-    for (const [index, pf] of pendingFoods.entries()) {
-      const entry = await logic.logFood(pf.input)
+    commitInFlightRef.current = true
+    setIsCommitting(true)
 
-      if (!entry) {
-        remainingFoods = pendingFoods.slice(index)
-        break
-      }
+    try {
+      const foodsToLog = pendingFoods
+      const optimisticToday = foodsToLog
+        .filter((food) => food.input.logDate === calorieSummary.today)
+        .reduce((sum, food) => sum + getPendingCalories(food), 0)
 
-      if (pf.input.logDate === calorieSummary.today) {
-        committedToday += pf.calories
-      }
-    }
-
-    if (committedToday > 0) {
-      setExtraConsumed((prev) => prev + committedToday)
-    }
-
-    setPendingFoods(remainingFoods)
-
-    if (remainingFoods.length === 0) {
+      setPendingFoods([])
       setPendingSheetOpen(false)
+      setExtraConsumed((prev) => prev + optimisticToday)
+
+      for (const food of foodsToLog) {
+        if (food.input.logDate !== calorieSummary.today) continue
+
+        addOptimisticNutritionEntry({
+          id: food.uid,
+          logDate: calorieSummary.today,
+          macros: food.macros,
+        })
+      }
+
+      router.push("/app")
+
+      const failedFoods: PendingFood[] = []
+      let succeededCount = 0
+
+      for (const pf of foodsToLog) {
+        const result = await postFoodLog(pf.input).catch(() => null)
+
+        if (!result) {
+          failedFoods.push(pf)
+          continue
+        }
+
+        succeededCount += 1
+        removeOptimisticNutritionEntries([
+          result.entry.clientMutationId ?? pf.uid,
+        ])
+
+        if (result.entry.logDate === calorieSummary.today) {
+          putConfirmedNutritionTotals(result.entry.logDate, result.totals)
+        }
+      }
+
+      removeOptimisticNutritionEntries(failedFoods.map((food) => food.uid))
+
+      if (failedFoods.length > 0) {
+        saveFailedPendingFoods(failedFoods)
+        toast.error("Some foods were not logged", {
+          action: {
+            label: "Retry",
+            onClick: () => router.push("/app/add?retry=failed"),
+          },
+        })
+      }
+
+      if (succeededCount > 0) {
+        router.refresh()
+      }
+    } finally {
+      commitInFlightRef.current = false
+      if (mountedRef.current) {
+        setIsCommitting(false)
+      }
     }
-  }, [pendingFoods, logic.logFood, calorieSummary.today])
+  }, [pendingFoods, calorieSummary.today, router])
 
   const fromHistory = useMemo(() => {
     if (!hasQuery) return []
@@ -1368,7 +1531,7 @@ export function AddFoodLogic({
           </div>
           <Button
             type="button"
-            disabled={pendingFoods.length === 0 || logic.isLogging}
+            disabled={pendingFoods.length === 0 || isCommitting}
             onClick={logAllPending}
             className="h-11 shrink-0 rounded-full bg-foreground px-5 text-background hover:bg-foreground/90 disabled:opacity-40"
           >
@@ -1395,7 +1558,7 @@ export function AddFoodLogic({
         pendingFoods={pendingFoods}
         onRemove={removePending}
         onCommit={logAllPending}
-        isLogging={logic.isLogging}
+        isLogging={isCommitting}
       />
     </div>
   )

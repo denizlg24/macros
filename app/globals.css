@@ -189,12 +189,15 @@
   html,
   body {
     height: 100%;
-    overflow: hidden;
   }
   body {
     @apply bg-background text-foreground;
     position: relative;
     letter-spacing: var(--tracking-normal);
+  }
+  html.macros-add-food-scroll-lock,
+  html.macros-add-food-scroll-lock body {
+    overflow: hidden;
   }
 }
 

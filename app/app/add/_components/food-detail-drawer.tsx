@@ -23,6 +23,7 @@ import {
   NUTRIENT_UPPER_LIMITS,
   WHO_DAILY_VALUES,
 } from "@/lib/foods/who-guidelines"
+import type { OptimisticDailyMacros } from "@/lib/optimistic-nutrition"
 import type { DailyCalorieSummary } from "@/lib/queries/calorie-summary"
 import { cn } from "@/lib/utils"
 
@@ -449,7 +450,10 @@ export interface FoodDetailDrawerProps {
   mealType: "breakfast" | "lunch" | "dinner" | "snack"
   isLogging: boolean
   onClose: () => void
-  onLog: (input: LogFoodInput, calories: number) => Promise<unknown>
+  onLog: (
+    input: LogFoodInput,
+    macros: OptimisticDailyMacros
+  ) => Promise<unknown>
 }
 
 export function FoodDetailDrawer({
@@ -539,7 +543,12 @@ export function FoodDetailDrawer({
         logDate,
         mealType,
       },
-      scaledNutrients["calories"] ?? 0
+      {
+        calories: scaledNutrients["calories"] ?? 0,
+        protein: scaledNutrients["protein"] ?? 0,
+        carbs: scaledNutrients["carbs"] ?? 0,
+        fat: scaledNutrients["fat"] ?? 0,
+      }
     )
     onClose()
   }, [

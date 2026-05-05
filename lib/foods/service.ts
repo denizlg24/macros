@@ -430,6 +430,26 @@ async function refreshDailyNutritionSummary(
       "fat" = excluded."fat",
       "updatedAt" = now()
   `)
+
+  const summary = await tx.query.dailyNutritionSummaries.findFirst({
+    where: and(
+      eq(dailyNutritionSummaries.userId, userId),
+      eq(dailyNutritionSummaries.logDate, logDate)
+    ),
+    columns: {
+      calories: true,
+      protein: true,
+      carbs: true,
+      fat: true,
+    },
+  })
+
+  return {
+    calories: summary ? Number(summary.calories) : 0,
+    protein: summary ? Number(summary.protein) : 0,
+    carbs: summary ? Number(summary.carbs) : 0,
+    fat: summary ? Number(summary.fat) : 0,
+  }
 }
 
 export async function logExternalFood(
@@ -444,7 +464,7 @@ export async function logExternalFood(
   const { foodId, snapshotId, summary, nutrition } =
     await ensureExternalFoodSnapshot(input.sourceItemId)
 
-  const entryId = await db.transaction(async (tx) => {
+  const logged = await db.transaction(async (tx) => {
     const [entry] = await tx
       .insert(foodLogEntries)
       .values({
@@ -478,17 +498,19 @@ export async function logExternalFood(
       await tx.insert(foodLogEntryNutrients).values(nutrientRows)
     }
 
-    await refreshDailyNutritionSummary(tx, userId, logDate)
+    const totals = await refreshDailyNutritionSummary(tx, userId, logDate)
 
-    return entry.id
+    return { entryId: entry.id, totals }
   })
 
   return {
-    entryId,
+    entryId: logged.entryId,
+    clientMutationId: input.clientMutationId,
     foodId,
     snapshotId,
     logDate,
     eatenAt: eatenAt.toISOString(),
     mealType,
+    totals: logged.totals,
   }
 }

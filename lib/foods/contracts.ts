@@ -139,6 +139,7 @@ export const foodRevalidateResponseSchema = z.object({
 })
 
 export const logFoodBodySchema = z.object({
+  clientMutationId: z.uuid().optional(),
   sourceItemId: z.uuid(),
   servingsConsumed: z.number().positive().max(9999).default(1),
   eatenAt: z.iso.datetime({ offset: true }).optional(),
@@ -150,11 +151,18 @@ export const logFoodBodySchema = z.object({
 export const logFoodResponseSchema = z.object({
   entry: z.object({
     entryId: z.uuid(),
+    clientMutationId: z.uuid().optional(),
     foodId: z.uuid(),
     snapshotId: z.uuid(),
     logDate: z.iso.date(),
     eatenAt: z.string(),
     mealType: mealTypeSchema,
+  }),
+  totals: z.object({
+    calories: z.number(),
+    protein: z.number(),
+    carbs: z.number(),
+    fat: z.number(),
   }),
 })
 
@@ -164,11 +172,18 @@ export type FoodHistoryItem = z.infer<typeof foodHistoryItemSchema>
 
 export interface LogFoodResult {
   entryId: string
+  clientMutationId?: string
   foodId: string
   snapshotId: string
   logDate: string
   eatenAt: string
   mealType: z.infer<typeof mealTypeSchema>
+  totals: {
+    calories: number
+    protein: number
+    carbs: number
+    fat: number
+  }
 }
 
 export type FoodSearchParams = z.infer<typeof foodSearchParamsSchema>
