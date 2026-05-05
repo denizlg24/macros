@@ -13,7 +13,7 @@ import {
   X,
 } from "lucide-react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useSearchParams } from "next/navigation"
 import {
   type ChangeEvent,
   Fragment,
@@ -1070,8 +1070,33 @@ export function AddFoodLogic({
   calorieSummary: DailyCalorieSummary
 }) {
   const logic = useAddFoodLogic()
+  const searchParams = useSearchParams()
   const [draft, setDraft] = useState("")
   const inputRef = useRef<HTMLInputElement | null>(null)
+  const containerRef = useRef<HTMLDivElement | null>(null)
+  const routeFocusHandledRef = useRef(false)
+
+  useEffect(() => {
+    const vv = window.visualViewport
+    if (!vv) return
+    const el = containerRef.current
+    if (!el) return
+
+    function sync() {
+      if (!el) return
+      el.style.height = `${vv!.height}px`
+      el.style.transform = `translateY(${vv!.offsetTop}px)`
+    }
+
+    sync()
+    vv.addEventListener("resize", sync)
+    vv.addEventListener("scroll", sync)
+
+    return () => {
+      vv.removeEventListener("resize", sync)
+      vv.removeEventListener("scroll", sync)
+    }
+  }, [])
   const [selectedFood, setSelectedFood] = useState<FoodSummary | null>(null)
   const [pendingFoods, setPendingFoods] = useState<PendingFood[]>([])
   const [pendingSheetOpen, setPendingSheetOpen] = useState(false)
@@ -1087,6 +1112,22 @@ export function AddFoodLogic({
     }, 200)
     return () => clearTimeout(handle)
   }, [draft, logic.searchFoods])
+
+  useEffect(() => {
+    if (
+      routeFocusHandledRef.current ||
+      searchParams.get("focus") !== "search"
+    ) {
+      return
+    }
+
+    routeFocusHandledRef.current = true
+    const handle = window.requestAnimationFrame(() => {
+      inputRef.current?.focus({ preventScroll: true })
+    })
+
+    return () => window.cancelAnimationFrame(handle)
+  }, [searchParams])
 
   const onChange = (e: ChangeEvent<HTMLInputElement>) =>
     setDraft(e.target.value)
@@ -1217,7 +1258,10 @@ export function AddFoodLogic({
   const latest = logic.history
 
   return (
-    <div className="fixed inset-0 z-50 flex h-dvh flex-col bg-background">
+    <div
+      ref={containerRef}
+      className="fixed inset-x-0 top-0 z-50 flex flex-col overflow-hidden bg-background"
+    >
       <div className="flex-none">
         <HeaderChips
           selectedDate={selectedDate}
@@ -1236,7 +1280,7 @@ export function AddFoodLogic({
         <NavTabs />
       </div>
 
-      <div className="flex-1 overflow-y-auto overscroll-contain pb-2">
+      <div className="flex-1 overflow-y-auto overscroll-contain pb-24">
         {hasQuery ? (
           <Fragment>
             <Section
@@ -1303,8 +1347,10 @@ export function AddFoodLogic({
       </div>
 
       <div
-        className="flex-none border-t border-border bg-background px-3 py-3"
-        style={{ paddingBottom: "max(env(safe-area-inset-bottom), 0.75rem)" }}
+        className="absolute inset-x-0 bottom-0 z-10 border-t border-border bg-background px-3 py-3"
+        style={{
+          paddingBottom: "max(env(safe-area-inset-bottom), 0.75rem)",
+        }}
       >
         <div className="flex items-center gap-2">
           <div className="relative flex-1">

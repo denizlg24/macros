@@ -186,8 +186,14 @@
   * {
     @apply border-border outline-ring/50;
   }
+  html,
+  body {
+    height: 100%;
+    overflow: hidden;
+  }
   body {
     @apply bg-background text-foreground;
+    position: relative;
     letter-spacing: var(--tracking-normal);
   }
 }
@@ -205,8 +211,27 @@
   animation: macros-loader-spin 2.4s linear infinite;
 }
 
+@keyframes macros-caret-blink {
+  0%,
+  45% {
+    opacity: 1;
+  }
+  46%,
+  100% {
+    opacity: 0;
+  }
+}
+
+.macros-caret-blink {
+  animation: macros-caret-blink 1s steps(1, end) infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .macros-loader-spin {
     animation-duration: 8s !important;
+  }
+
+  .macros-caret-blink {
+    animation: none;
   }
 }
