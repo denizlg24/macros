@@ -7,19 +7,33 @@ export type OptimisticDailyMacros = DailyMacros
 
 interface OptimisticNutritionEntry {
   id: string
-  batchId?: string
   logDate: string
-  baseCalories?: number
+  macros: OptimisticDailyMacros
+}
+
+interface ConfirmedNutritionTotals {
+  logDate: string
+  confirmedAt: number
   macros: OptimisticDailyMacros
 }
 
 const STORAGE_KEY = "macros.optimistic-nutrition.v1"
+const CONFIRMED_STORAGE_KEY = "macros.confirmed-nutrition.v1"
 const EVENT_NAME = "macros:optimistic-nutrition"
+const CONFIRMED_TOTAL_TTL_MS = 60_000
 const optimisticNutritionEntrySchema = z.object({
   id: z.string(),
-  batchId: z.string().optional(),
   logDate: z.string(),
-  baseCalories: z.number().optional(),
+  macros: z.object({
+    calories: z.number(),
+    protein: z.number(),
+    carbs: z.number(),
+    fat: z.number(),
+  }),
+})
+const confirmedNutritionTotalsSchema = z.object({
+  logDate: z.string(),
+  confirmedAt: z.number(),
   macros: z.object({
     calories: z.number(),
     protein: z.number(),
@@ -36,22 +50,47 @@ function isEntry(value: unknown): value is OptimisticNutritionEntry {
   return optimisticNutritionEntrySchema.safeParse(value).success
 }
 
-function readEntries(): OptimisticNutritionEntry[] {
+function isConfirmedTotals(value: unknown): value is ConfirmedNutritionTotals {
+  return confirmedNutritionTotalsSchema.safeParse(value).success
+}
+
+function readStoredArray<T>(
+  key: string,
+  predicate: (value: unknown) => value is T
+): T[] {
   if (typeof window === "undefined") return []
 
   try {
-    const raw = window.sessionStorage.getItem(STORAGE_KEY)
+    const raw = window.sessionStorage.getItem(key)
     if (!raw) return []
     const parsed: unknown = JSON.parse(raw)
-    return Array.isArray(parsed) ? parsed.filter(isEntry) : []
+    return Array.isArray(parsed) ? parsed.filter(predicate) : []
   } catch {
     return []
   }
 }
 
+function readEntries(): OptimisticNutritionEntry[] {
+  return readStoredArray(STORAGE_KEY, isEntry)
+}
+
+function readConfirmedTotals(): ConfirmedNutritionTotals[] {
+  return readStoredArray(CONFIRMED_STORAGE_KEY, isConfirmedTotals)
+}
+
+function writeStoredArray(key: string, values: unknown[]) {
+  if (typeof window === "undefined") return
+
+  try {
+    window.sessionStorage.setItem(key, JSON.stringify(values))
+    window.dispatchEvent(new Event(EVENT_NAME))
+  } catch (error) {
+    console.warn("Failed to update optimistic nutrition storage", error)
+  }
+}
+
 function writeEntries(entries: OptimisticNutritionEntry[]) {
-  window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(entries))
-  window.dispatchEvent(new Event(EVENT_NAME))
+  writeStoredArray(STORAGE_KEY, entries)
 }
 
 export function addOptimisticNutritionEntry(entry: OptimisticNutritionEntry) {
@@ -64,50 +103,40 @@ export function removeOptimisticNutritionEntries(ids: string[]) {
   writeEntries(readEntries().filter((entry) => !idSet.has(entry.id)))
 }
 
-export function getOptimisticNutritionForDate(
-  logDate: string
-): OptimisticDailyMacros {
-  return readEntries()
-    .filter((entry) => entry.logDate === logDate)
-    .reduce((total, entry) => addMacros(total, entry.macros), zeroMacros())
+export function putConfirmedNutritionTotals(
+  logDate: string,
+  macros: OptimisticDailyMacros
+) {
+  const nextTotals: ConfirmedNutritionTotals = {
+    logDate,
+    confirmedAt: Date.now(),
+    macros,
+  }
+  writeStoredArray(CONFIRMED_STORAGE_KEY, [
+    ...readConfirmedTotals().filter((totals) => totals.logDate !== logDate),
+    nextTotals,
+  ])
 }
 
-export function pruneReconciledOptimisticNutritionEntries(
+export function getOptimisticNutritionForDate(
   logDate: string,
-  serverCalories: number
-) {
-  const entries = readEntries()
-  const batches = new Map<string, OptimisticNutritionEntry[]>()
+  serverMacros?: OptimisticDailyMacros
+): OptimisticDailyMacros {
+  const optimisticMacros = readEntries()
+    .filter((entry) => entry.logDate === logDate)
+    .reduce((total, entry) => addMacros(total, entry.macros), zeroMacros())
 
-  for (const entry of entries) {
-    if (entry.logDate !== logDate || entry.baseCalories == null) {
-      continue
-    }
+  if (!serverMacros) return optimisticMacros
 
-    const batchId = entry.batchId ?? entry.id
-    batches.set(batchId, [...(batches.get(batchId) ?? []), entry])
-  }
+  const now = Date.now()
+  const confirmed = readConfirmedTotals().find(
+    (totals) =>
+      totals.logDate === logDate &&
+      now - totals.confirmedAt <= CONFIRMED_TOTAL_TTL_MS &&
+      totals.macros.calories >= serverMacros.calories
+  )
 
-  const reconciledIds = new Set<string>()
-  for (const batchEntries of batches.values()) {
-    const baseCalories = batchEntries[0]?.baseCalories
-    if (baseCalories == null) continue
-
-    const batchCalories = batchEntries.reduce(
-      (sum, entry) => sum + entry.macros.calories,
-      0
-    )
-
-    if (serverCalories >= baseCalories + batchCalories) {
-      for (const entry of batchEntries) {
-        reconciledIds.add(entry.id)
-      }
-    }
-  }
-
-  if (reconciledIds.size === 0) return
-
-  writeEntries(entries.filter((entry) => !reconciledIds.has(entry.id)))
+  return addMacros(confirmed?.macros ?? serverMacros, optimisticMacros)
 }
 
 export function subscribeToOptimisticNutrition(onStoreChange: () => void) {

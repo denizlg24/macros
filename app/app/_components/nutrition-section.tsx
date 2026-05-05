@@ -4,9 +4,7 @@ import { useRouter } from "next/navigation"
 import { useEffect, useRef, useState, useTransition } from "react"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
-  addMacros,
   getOptimisticNutritionForDate,
-  pruneReconciledOptimisticNutritionEntries,
   subscribeToOptimisticNutrition,
 } from "@/lib/optimistic-nutrition"
 import type {
@@ -43,7 +41,7 @@ export function NutritionSection({
   const saveRequestSeq = useRef(0)
   const saveController = useRef<AbortController | null>(null)
   const [optimisticConsumed, setOptimisticConsumed] = useState(() =>
-    addMacros(consumed, getOptimisticNutritionForDate(today))
+    getOptimisticNutritionForDate(today, consumed)
   )
 
   useEffect(() => {
@@ -52,10 +50,7 @@ export function NutritionSection({
 
   useEffect(() => {
     function syncOptimisticConsumed() {
-      pruneReconciledOptimisticNutritionEntries(today, consumed.calories)
-      setOptimisticConsumed(
-        addMacros(consumed, getOptimisticNutritionForDate(today))
-      )
+      setOptimisticConsumed(getOptimisticNutritionForDate(today, consumed))
     }
 
     syncOptimisticConsumed()

@@ -24,6 +24,7 @@ import {
   useRef,
   useState,
 } from "react"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import {
   Drawer,
@@ -47,6 +48,7 @@ import {
 import {
   addOptimisticNutritionEntry,
   type OptimisticDailyMacros,
+  putConfirmedNutritionTotals,
   removeOptimisticNutritionEntries,
 } from "@/lib/optimistic-nutrition"
 import type { DailyCalorieSummary } from "@/lib/queries/calorie-summary"
@@ -282,7 +284,7 @@ export function useAddFoodLogic() {
       const body = logFoodResponseSchema.parse(await readJsonResponse(response))
 
       setState((current) => ({ ...current, isLogging: false }))
-      return body.entry
+      return body
     } catch (error) {
       setState((current) => ({
         ...current,
@@ -943,8 +945,52 @@ type PendingFood = {
   macros: OptimisticDailyMacros
 }
 
+const FAILED_PENDING_FOODS_KEY = "macros.failed-pending-foods.v1"
+
 function getPendingCalories(food: PendingFood) {
   return food.macros.calories
+}
+
+function readFailedPendingFoods(): PendingFood[] {
+  try {
+    const raw = window.sessionStorage.getItem(FAILED_PENDING_FOODS_KEY)
+    if (!raw) return []
+    const parsed: unknown = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter((food): food is PendingFood => {
+      if (!food || typeof food !== "object") return false
+      return (
+        "uid" in food && "food" in food && "input" in food && "macros" in food
+      )
+    })
+  } catch {
+    return []
+  }
+}
+
+function takeFailedPendingFoods(): PendingFood[] {
+  const foods = readFailedPendingFoods()
+  if (foods.length === 0) return foods
+
+  try {
+    window.sessionStorage.removeItem(FAILED_PENDING_FOODS_KEY)
+  } catch {}
+
+  return foods
+}
+
+function saveFailedPendingFoods(foods: PendingFood[]) {
+  if (foods.length === 0) return
+
+  try {
+    const existing = readFailedPendingFoods()
+    window.sessionStorage.setItem(
+      FAILED_PENDING_FOODS_KEY,
+      JSON.stringify([...foods, ...existing])
+    )
+  } catch (error) {
+    console.warn("Failed to store failed food logs for retry", error)
+  }
 }
 
 function foodColor(name: string): string {
@@ -1122,6 +1168,14 @@ export function AddFoodLogic({
   )
 
   useEffect(() => {
+    const failedFoods = takeFailedPendingFoods()
+    if (failedFoods.length === 0) return
+
+    setPendingFoods((prev) => [...failedFoods, ...prev])
+    setPendingSheetOpen(true)
+  }, [])
+
+  useEffect(() => {
     const handle = setTimeout(() => {
       logic.searchFoods(draft)
     }, 200)
@@ -1180,9 +1234,15 @@ export function AddFoodLogic({
   const addToPending = useCallback(
     (input: LogFoodInput, macros: OptimisticDailyMacros) => {
       if (!selectedFood) return Promise.resolve()
+      const clientMutationId = crypto.randomUUID()
       setPendingFoods((prev) => [
         ...prev,
-        { uid: crypto.randomUUID(), food: selectedFood, input, macros },
+        {
+          uid: clientMutationId,
+          food: selectedFood,
+          input: { ...input, clientMutationId },
+          macros,
+        },
       ])
       return Promise.resolve()
     },
@@ -1191,12 +1251,14 @@ export function AddFoodLogic({
 
   const quickAddToPending = useCallback(
     (item: SearchableItem, servingsConsumed: number) => {
+      const clientMutationId = crypto.randomUUID()
       setPendingFoods((prev) => [
         ...prev,
         {
-          uid: crypto.randomUUID(),
+          uid: clientMutationId,
           food: item,
           input: {
+            clientMutationId,
             sourceItemId: item.id,
             servingsConsumed,
             eatenAt,
@@ -1223,7 +1285,6 @@ export function AddFoodLogic({
     if (pendingFoods.length === 0 || logic.isLogging) return
 
     const foodsToLog = pendingFoods
-    const batchId = crypto.randomUUID()
     const optimisticToday = foodsToLog
       .filter((food) => food.input.logDate === calorieSummary.today)
       .reduce((sum, food) => sum + getPendingCalories(food), 0)
@@ -1233,11 +1294,11 @@ export function AddFoodLogic({
     setExtraConsumed((prev) => prev + optimisticToday)
 
     for (const food of foodsToLog) {
+      if (food.input.logDate !== calorieSummary.today) continue
+
       addOptimisticNutritionEntry({
         id: food.uid,
-        batchId,
-        logDate: food.input.logDate ?? calorieSummary.today,
-        baseCalories: calorieSummary.consumed,
+        logDate: calorieSummary.today,
         macros: food.macros,
       })
     }
@@ -1248,14 +1309,21 @@ export function AddFoodLogic({
     const succeededIds: string[] = []
 
     for (const pf of foodsToLog) {
-      const entry = await logic.logFood(pf.input)
+      const result = await logic.logFood(pf.input)
 
-      if (!entry) {
+      if (!result) {
         failedFoods.push(pf)
         continue
       }
 
       succeededIds.push(pf.uid)
+      removeOptimisticNutritionEntries([
+        result.entry.clientMutationId ?? pf.uid,
+      ])
+
+      if (result.entry.logDate === calorieSummary.today) {
+        putConfirmedNutritionTotals(result.entry.logDate, result.totals)
+      }
     }
 
     removeOptimisticNutritionEntries(failedFoods.map((food) => food.uid))
@@ -1268,18 +1336,20 @@ export function AddFoodLogic({
       setExtraConsumed((prev) => prev - failedToday)
       setPendingFoods((prev) => [...failedFoods, ...prev])
       setPendingSheetOpen(true)
+      saveFailedPendingFoods(failedFoods)
+      toast.error("Some foods were not logged", {
+        action: {
+          label: "Retry",
+          onClick: () => router.push("/app/add?retry=failed"),
+        },
+      })
     }
 
     if (succeededIds.length > 0) {
       await logic.refreshHistory()
+      router.refresh()
     }
-  }, [
-    pendingFoods,
-    logic,
-    calorieSummary.today,
-    calorieSummary.consumed,
-    router,
-  ])
+  }, [pendingFoods, logic, calorieSummary.today, router])
 
   const fromHistory = useMemo(() => {
     if (!hasQuery) return []

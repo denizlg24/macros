@@ -432,6 +432,28 @@ async function refreshDailyNutritionSummary(
   `)
 }
 
+async function getDailySummaryMacros(userId: string, logDate: string) {
+  const summary = await db.query.dailyNutritionSummaries.findFirst({
+    where: and(
+      eq(dailyNutritionSummaries.userId, userId),
+      eq(dailyNutritionSummaries.logDate, logDate)
+    ),
+    columns: {
+      calories: true,
+      protein: true,
+      carbs: true,
+      fat: true,
+    },
+  })
+
+  return {
+    calories: summary ? Number(summary.calories) : 0,
+    protein: summary ? Number(summary.protein) : 0,
+    carbs: summary ? Number(summary.carbs) : 0,
+    fat: summary ? Number(summary.fat) : 0,
+  }
+}
+
 export async function logExternalFood(
   userId: string,
   input: LogFoodInput
@@ -485,10 +507,12 @@ export async function logExternalFood(
 
   return {
     entryId,
+    clientMutationId: input.clientMutationId,
     foodId,
     snapshotId,
     logDate,
     eatenAt: eatenAt.toISOString(),
     mealType,
+    totals: await getDailySummaryMacros(userId, logDate),
   }
 }
