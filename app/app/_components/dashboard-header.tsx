@@ -126,7 +126,7 @@ export function DashboardHeader() {
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
             <Link
-              href="/app/add"
+              href="/app/add?focus=search"
               className="absolute inset-0 rounded-full"
               aria-label="Search for a food"
             />

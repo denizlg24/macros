@@ -1,7 +1,7 @@
 "use client"
 
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden"
-import { Flame } from "lucide-react"
+import { ArrowLeft, CornerDownLeft, Delete, Flame } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   Drawer,
@@ -37,7 +37,7 @@ export type FoodSummary = {
   carbsPerServing: number | null | undefined
 }
 
-type Unit = "g" | "oz" | "serving"
+type Unit = "g" | "oz" | "lb" | "serving"
 
 function fmtAmount(v: number) {
   if (v === 0) return "0"
@@ -63,6 +63,7 @@ function computeScale(
   if (unit === "serving") return qty
   const gramsPerServing = servingQuantityGrams ?? 100
   if (unit === "oz") return (qty * 28.3495) / gramsPerServing
+  if (unit === "lb") return (qty * 453.592) / gramsPerServing
   return qty / gramsPerServing
 }
 
@@ -250,70 +251,192 @@ function NutrientRow({
   )
 }
 
-function ServingSelector({
+function ServingEditor({
   qty,
   unit,
   servingLabel,
   servingQuantityGrams,
   onChange,
+  onAdd,
+  isAdding,
+  expanded,
+  onExpandedChange,
 }: {
   qty: string
   unit: Unit
   servingLabel: string | null
   servingQuantityGrams: number | null
   onChange: (qty: string, unit: Unit) => void
+  onAdd: () => void
+  isAdding: boolean
+  expanded: boolean
+  onExpandedChange: (expanded: boolean) => void
 }) {
   const units: { id: Unit; label: string }[] = [
     { id: "g", label: "g" },
     { id: "oz", label: "oz" },
-    ...(servingLabel ? [{ id: "serving" as Unit, label: servingLabel }] : []),
+    ...(servingLabel ? [{ id: "serving" as Unit, label: "serving" }] : []),
+    { id: "lb", label: "lb" },
   ]
 
-  const displayGrams = useMemo(() => {
-    const n = parseFloat(qty)
-    if (!Number.isFinite(n) || n <= 0 || !servingQuantityGrams) return null
-    if (unit === "serving") return Math.round(n * servingQuantityGrams)
-    if (unit === "oz") return Math.round(n * 28.3495)
-    if (unit === "g") return Math.round(n)
-    return null
-  }, [qty, unit, servingQuantityGrams])
+  const unitLabel = unit === "serving" ? (servingLabel ?? "serving") : unit
+  const amountLabel = qty.trim() || "0"
+
+  const commitQty = useCallback(
+    (nextQty: string) => {
+      onChange(nextQty, unit)
+    },
+    [onChange, unit]
+  )
+
+  const pressKey = useCallback(
+    (key: string) => {
+      if (/^\d$/.test(key)) {
+        commitQty(qty === "0" ? key : `${qty}${key}`)
+        return
+      }
+
+      if (key === "." && !qty.includes(".")) {
+        commitQty(qty ? `${qty}.` : "0.")
+        return
+      }
+
+      if (key === "backspace") {
+        commitQty(qty.length > 1 ? qty.slice(0, -1) : "0")
+        return
+      }
+
+      if (key === "done") {
+        onExpandedChange(false)
+      }
+    },
+    [commitQty, onExpandedChange, qty]
+  )
+
+  const keypad = [
+    "1",
+    "2",
+    "3",
+    "backspace",
+    "4",
+    "5",
+    "6",
+    "done",
+    "7",
+    "8",
+    "9",
+    "add",
+    ".",
+    "0",
+  ]
 
   return (
-    <div className="space-y-2.5 px-4 py-3">
-      <div className="flex items-center gap-2 rounded-xl border border-border bg-muted/50 px-4 py-2.5">
-        <input
-          type="number"
-          inputMode="decimal"
-          min="0"
-          step="0.1"
-          value={qty}
-          onChange={(e) => onChange(e.target.value, unit)}
-          className="min-w-0 flex-1 bg-transparent text-xl font-semibold text-foreground outline-none tabular-nums placeholder:text-muted-foreground"
-          placeholder="Amount"
-        />
-        {servingLabel && unit === "serving" && displayGrams != null && (
-          <span className="shrink-0 text-xs text-muted-foreground">
-            {servingLabel} • {displayGrams} g
-          </span>
+    <div
+      className={cn(
+        "flex-none border-t border-border bg-muted/60 px-2 py-2 text-xs pb-4!"
+      )}
+      onClick={(event) => event.stopPropagation()}
+    >
+      <div
+        className={cn(
+          "grid gap-2",
+          expanded ? "grid-cols-1" : "grid-cols-[1fr_auto]"
         )}
-      </div>
-      <div className="flex gap-2">
-        {units.map(({ id, label }) => (
+      >
+        <button
+          type="button"
+          onClick={() => onExpandedChange(true)}
+          className={cn(
+            "flex h-9 min-w-0 items-center justify-between rounded-md bg-background px-2.5 text-left text-xs tabular-nums text-foreground shadow-inner",
+            expanded && "ring-2 ring-foreground"
+          )}
+        >
+          <span className="flex min-w-0 items-center">
+            <span className="truncate">{amountLabel}</span>
+            <span className="macros-caret-blink ml-0.5 h-4 w-px bg-accent" />
+          </span>
+          <span className="ml-2 shrink-0 text-xs text-muted-foreground">
+            {unitLabel}
+          </span>
+        </button>
+
+        {!expanded ? (
           <button
-            key={id}
             type="button"
-            onClick={() => onChange(qty, id)}
-            className={cn(
-              "rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
-              unit === id
-                ? "bg-foreground text-background"
-                : "bg-muted text-muted-foreground"
-            )}
+            onClick={onAdd}
+            disabled={isAdding}
+            className="h-9 rounded-md bg-foreground px-4 text-xs font-semibold text-background disabled:opacity-50"
           >
-            {label}
+            {isAdding ? "Adding..." : "Add"}
           </button>
-        ))}
+        ) : null}
       </div>
+
+      {expanded ? (
+        <>
+          <div className="mt-1.5">
+            <div className="grid min-w-0 grid-cols-4 gap-1">
+              {units.map(({ id, label }) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => onChange(qty, id)}
+                  className={cn(
+                    "h-7 rounded-full px-1.5 text-xs font-semibold transition-colors",
+                    unit === id
+                      ? "bg-foreground text-background"
+                      : "bg-background text-foreground"
+                  )}
+                >
+                  <span className="block truncate">{label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-1.5 grid grid-cols-4 gap-1">
+            {keypad.map((key) => {
+              if (key === "add") {
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={onAdd}
+                    disabled={isAdding}
+                    className="h-9 rounded-sm bg-foreground text-xs font-semibold text-background disabled:opacity-50"
+                  >
+                    {isAdding ? "Adding..." : "Add"}
+                  </button>
+                )
+              }
+
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => pressKey(key)}
+                  className="flex h-9 items-center justify-center rounded-sm bg-muted text-xs font-medium tabular-nums text-foreground active:bg-muted/70"
+                  aria-label={
+                    key === "backspace"
+                      ? "Backspace"
+                      : key === "done"
+                        ? "Done"
+                        : key
+                  }
+                >
+                  {key === "backspace" ? (
+                    <Delete className="size-4" />
+                  ) : key === "done" ? (
+                    <CornerDownLeft className="size-4" />
+                  ) : (
+                    key
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        </>
+      ) : null}
     </div>
   )
 }
@@ -345,6 +468,7 @@ export function FoodDetailDrawer({
 
   const [qty, setQty] = useState("1")
   const [unit, setUnit] = useState<Unit>("serving")
+  const [servingEditorExpanded, setServingEditorExpanded] = useState(false)
   const [nutrition, setNutrition] = useState<ExternalFoodNutrition | null>(null)
   const [isLoadingNutrition, setIsLoadingNutrition] = useState(false)
 
@@ -354,6 +478,7 @@ export function FoodDetailDrawer({
     setIsLoadingNutrition(true)
     setNutrition(null)
     setQty("1")
+    setServingEditorExpanded(false)
 
     fetch(`/api/foods/${food.id}`)
       .then((r) => r.json())
@@ -452,8 +577,14 @@ export function FoodDetailDrawer({
     : ""
 
   return (
-    <Drawer open={food !== null} onOpenChange={(open) => !open && onClose()}>
-      <DrawerContent className="flex h-[calc(100dvh-3rem)]! max-h-full! flex-col rounded-none">
+    <Drawer
+      hideBackdrop
+      open={food !== null}
+      onOpenChange={(open) => !open && onClose()}
+      disablePreventScroll={false}
+      repositionInputs={false}
+    >
+      <DrawerContent className="flex h-[calc(100dvh-4rem)]! max-h-none! flex-col rounded-none">
         <VisuallyHidden>
           <DrawerTitle>{displayName}</DrawerTitle>
           <DrawerDescription>
@@ -461,13 +592,24 @@ export function FoodDetailDrawer({
           </DrawerDescription>
         </VisuallyHidden>
 
-        <div className="flex-none border-b border-border px-4 py-3">
+        <div className="flex flex-none items-center gap-2 border-b border-border px-3 py-3">
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close food details"
+            className="flex size-8 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            <ArrowLeft className="size-4" />
+          </button>
           <h2 className="truncate text-sm font-semibold text-foreground">
             {displayName}
           </h2>
         </div>
 
-        <div className="flex-1 overflow-y-auto overscroll-contain">
+        <div
+          className="flex-1 overflow-y-auto overscroll-contain"
+          onClick={() => setServingEditorExpanded(false)}
+        >
           <div className="px-4 pt-4 pb-2">
             <div className="flex items-end gap-4">
               <div className="flex flex-col items-center">
@@ -525,20 +667,6 @@ export function FoodDetailDrawer({
             </div>
           </div>
 
-          {isLoadingNutrition ? (
-            <div className="px-4 py-3">
-              <div className="h-12 animate-pulse rounded-xl bg-muted" />
-            </div>
-          ) : (
-            <ServingSelector
-              qty={qty}
-              unit={unit}
-              servingLabel={servingLabel ?? null}
-              servingQuantityGrams={servingQuantityGrams}
-              onChange={handleQtyUnitChange}
-            />
-          )}
-
           <div className="mx-4 h-px bg-border" />
 
           {NUTRIENT_SECTIONS.map((section) => {
@@ -582,21 +710,23 @@ export function FoodDetailDrawer({
           <div className="h-6" />
         </div>
 
-        <div
-          className="flex-none border-t border-border bg-background px-3 py-3"
-          style={{
-            paddingBottom: "max(env(safe-area-inset-bottom), 0.75rem)",
-          }}
-        >
-          <button
-            type="button"
-            onClick={handleLog}
-            disabled={isLogging}
-            className="h-11 w-full rounded-2xl bg-foreground text-sm font-semibold text-background disabled:opacity-50"
-          >
-            {isLogging ? "Adding…" : "Add"}
-          </button>
-        </div>
+        {isLoadingNutrition ? (
+          <div className="flex-none border-t border-border bg-background px-3 py-3">
+            <div className="h-14 animate-pulse rounded-lg bg-muted" />
+          </div>
+        ) : (
+          <ServingEditor
+            qty={qty}
+            unit={unit}
+            servingLabel={servingLabel ?? null}
+            servingQuantityGrams={servingQuantityGrams}
+            onChange={handleQtyUnitChange}
+            onAdd={handleLog}
+            isAdding={isLogging}
+            expanded={servingEditorExpanded}
+            onExpandedChange={setServingEditorExpanded}
+          />
+        )}
       </DrawerContent>
     </Drawer>
   )
