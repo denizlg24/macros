@@ -21,7 +21,10 @@ export async function POST(request: Request) {
     )
   }
 
-  const entry = await logExternalFood(session.user.id, parsed.data)
+  const { totals, ...entry } = await logExternalFood(
+    session.user.id,
+    parsed.data
+  )
 
-  return NextResponse.json({ entry }, { status: 201 })
+  return NextResponse.json({ entry, totals }, { status: 201 })
 }

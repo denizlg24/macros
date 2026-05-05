@@ -25,6 +25,7 @@ import {
   useState,
 } from "react"
 import { toast } from "sonner"
+import { z } from "zod"
 import { Button } from "@/components/ui/button"
 import {
   Drawer,
@@ -43,6 +44,7 @@ import {
   foodSearchParamsSchema,
   foodSearchResponseSchema,
   type LogFoodInput,
+  logFoodBodySchema,
   logFoodResponseSchema,
 } from "@/lib/foods/contracts"
 import {
@@ -80,6 +82,16 @@ async function readJsonResponse(response: Response) {
 
   const body: unknown = await response.json()
   return body
+}
+
+async function postFoodLog(input: LogFoodInput) {
+  const response = await fetch("/api/food-log/entries", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  })
+
+  return logFoodResponseSchema.parse(await readJsonResponse(response))
 }
 
 function getHourInTimezone(date: Date, timezone: string) {
@@ -276,12 +288,7 @@ export function useAddFoodLogic() {
     setState((current) => ({ ...current, isLogging: true, error: null }))
 
     try {
-      const response = await fetch("/api/food-log/entries", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(input),
-      })
-      const body = logFoodResponseSchema.parse(await readJsonResponse(response))
+      const body = await postFoodLog(input)
 
       setState((current) => ({ ...current, isLogging: false }))
       return body
@@ -946,6 +953,26 @@ type PendingFood = {
 }
 
 const FAILED_PENDING_FOODS_KEY = "macros.failed-pending-foods.v1"
+const failedPendingFoodSchema = z.object({
+  uid: z.uuid(),
+  food: z.object({
+    id: z.uuid(),
+    name: z.string(),
+    brand: z.string().nullable().optional(),
+    servingLabel: z.string().nullable().optional(),
+    caloriesPerServing: z.number().nullable().optional(),
+    proteinPerServing: z.number().nullable().optional(),
+    fatPerServing: z.number().nullable().optional(),
+    carbsPerServing: z.number().nullable().optional(),
+  }),
+  input: logFoodBodySchema,
+  macros: z.object({
+    calories: z.number(),
+    protein: z.number(),
+    carbs: z.number(),
+    fat: z.number(),
+  }),
+})
 
 function getPendingCalories(food: PendingFood) {
   return food.macros.calories
@@ -957,12 +984,10 @@ function readFailedPendingFoods(): PendingFood[] {
     if (!raw) return []
     const parsed: unknown = JSON.parse(raw)
     if (!Array.isArray(parsed)) return []
-    return parsed.filter((food): food is PendingFood => {
-      if (!food || typeof food !== "object") return false
-      return (
-        "uid" in food && "food" in food && "input" in food && "macros" in food
-      )
-    })
+    return parsed.filter(
+      (food): food is PendingFood =>
+        failedPendingFoodSchema.safeParse(food).success
+    )
   } catch {
     return []
   }
@@ -1306,17 +1331,17 @@ export function AddFoodLogic({
     router.push("/app")
 
     const failedFoods: PendingFood[] = []
-    const succeededIds: string[] = []
+    let succeededCount = 0
 
     for (const pf of foodsToLog) {
-      const result = await logic.logFood(pf.input)
+      const result = await postFoodLog(pf.input).catch(() => null)
 
       if (!result) {
         failedFoods.push(pf)
         continue
       }
 
-      succeededIds.push(pf.uid)
+      succeededCount += 1
       removeOptimisticNutritionEntries([
         result.entry.clientMutationId ?? pf.uid,
       ])
@@ -1329,13 +1354,6 @@ export function AddFoodLogic({
     removeOptimisticNutritionEntries(failedFoods.map((food) => food.uid))
 
     if (failedFoods.length > 0) {
-      const failedToday = failedFoods
-        .filter((food) => food.input.logDate === calorieSummary.today)
-        .reduce((sum, food) => sum + getPendingCalories(food), 0)
-
-      setExtraConsumed((prev) => prev - failedToday)
-      setPendingFoods((prev) => [...failedFoods, ...prev])
-      setPendingSheetOpen(true)
       saveFailedPendingFoods(failedFoods)
       toast.error("Some foods were not logged", {
         action: {
@@ -1345,11 +1363,10 @@ export function AddFoodLogic({
       })
     }
 
-    if (succeededIds.length > 0) {
-      await logic.refreshHistory()
+    if (succeededCount > 0) {
       router.refresh()
     }
-  }, [pendingFoods, logic, calorieSummary.today, router])
+  }, [pendingFoods, logic.isLogging, calorieSummary.today, router])
 
   const fromHistory = useMemo(() => {
     if (!hasQuery) return []
