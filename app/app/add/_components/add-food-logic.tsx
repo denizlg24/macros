@@ -1,6 +1,7 @@
 "use client"
 
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden"
+import { useQueryClient } from "@tanstack/react-query"
 import {
   Barcode,
   BookOpen,
@@ -35,11 +36,12 @@ import {
   DrawerTrigger,
 } from "@/components/ui/drawer"
 import { Input } from "@/components/ui/input"
+import { setTodayNutritionTotals, useFoodHistory } from "@/lib/app-cache/api"
+import { queryKeys } from "@/lib/app-cache/query-keys"
 import {
   type FoodHistoryItem,
   type FoodSearchItem,
   type FoodSearchParams,
-  foodHistoryResponseSchema,
   foodRevalidateResponseSchema,
   foodSearchParamsSchema,
   foodSearchResponseSchema,
@@ -138,6 +140,7 @@ function getSearchParams(query: string): FoodSearchParams | null {
 
 export function useAddFoodLogic() {
   const requestSeq = useRef(0)
+  const foodHistoryQuery = useFoodHistory(20)
   const [state, setState] = useState<FoodSearchState>({
     query: "",
     timePicks: [],
@@ -150,42 +153,6 @@ export function useAddFoodLogic() {
     error: null,
     fetchedAt: null,
   })
-
-  const loadHistory = useCallback(async () => {
-    setState((current) => ({
-      ...current,
-      isLoadingHistory: true,
-      error: null,
-    }))
-
-    try {
-      const [picksRes, historyRes] = await Promise.all([
-        fetch("/api/foods/history?limit=5", { cache: "no-store" }),
-        fetch(`/api/foods/history?limit=20`, { cache: "no-store" }),
-      ])
-
-      const picksBody = foodHistoryResponseSchema.parse(
-        await readJsonResponse(picksRes)
-      )
-      const historyBody = foodHistoryResponseSchema.parse(
-        await readJsonResponse(historyRes)
-      )
-
-      setState((current) => ({
-        ...current,
-        timePicks: picksBody.items,
-        history: historyBody.items,
-        isLoadingHistory: false,
-      }))
-    } catch (error) {
-      setState((current) => ({
-        ...current,
-        isLoadingHistory: false,
-        error:
-          error instanceof Error ? error.message : "Failed to load history",
-      }))
-    }
-  }, [])
 
   const revalidateCachedItems = useCallback(
     async (itemIds: string[], activeRequest: number) => {
@@ -302,18 +269,29 @@ export function useAddFoodLogic() {
     }
   }, [])
 
-  useEffect(() => {
-    loadHistory()
-  }, [loadHistory])
-
+  const historyItems = foodHistoryQuery.data?.items ?? []
+  const isLoadingHistory = foodHistoryQuery.isPending
+  const refetchHistory = foodHistoryQuery.refetch
   return useMemo(
     () => ({
       ...state,
+      history: historyItems,
+      isLoadingHistory,
+      timePicks: historyItems.slice(0, 5),
       searchFoods,
       logFood,
-      refreshHistory: loadHistory,
+      refreshHistory: () => {
+        void refetchHistory()
+      },
     }),
-    [state, searchFoods, logFood, loadHistory]
+    [
+      state,
+      historyItems,
+      isLoadingHistory,
+      refetchHistory,
+      searchFoods,
+      logFood,
+    ]
   )
 }
 
@@ -1147,6 +1125,7 @@ export function AddFoodLogic({
   calorieSummary: DailyCalorieSummary
 }) {
   const router = useRouter()
+  const queryClient = useQueryClient()
   const logic = useAddFoodLogic()
   const searchParams = useSearchParams()
   const [draft, setDraft] = useState("")
@@ -1364,6 +1343,11 @@ export function AddFoodLogic({
 
         if (result.entry.logDate === calorieSummary.today) {
           putConfirmedNutritionTotals(result.entry.logDate, result.totals)
+          setTodayNutritionTotals(
+            queryClient,
+            result.entry.logDate,
+            result.totals
+          )
         }
       }
 
@@ -1380,7 +1364,13 @@ export function AddFoodLogic({
       }
 
       if (succeededCount > 0) {
-        router.refresh()
+        void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard })
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.calorieSummary,
+        })
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.foodHistory(20),
+        })
       }
     } finally {
       commitInFlightRef.current = false
@@ -1388,7 +1378,7 @@ export function AddFoodLogic({
         setIsCommitting(false)
       }
     }
-  }, [pendingFoods, calorieSummary.today, router])
+  }, [pendingFoods, calorieSummary.today, queryClient, router])
 
   const fromHistory = useMemo(() => {
     if (!hasQuery) return []

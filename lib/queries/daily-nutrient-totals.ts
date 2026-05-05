@@ -1,11 +1,15 @@
 import { and, eq, sql } from "drizzle-orm"
+import { z } from "zod"
 
 import { db } from "@/db/connection"
 import {
+  dailyNutritionSummaries,
   foodLogEntries,
   foodLogEntryNutrients,
   userProfiles,
 } from "@/db/schema"
+
+const nutrientTotalsSchema = z.record(z.string(), z.number())
 
 function toIsoDate(date: Date, timezone: string): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: timezone }).format(date)
@@ -20,6 +24,19 @@ export async function getDailyNutrientTotals(
   })
   const timezone = profile?.timezone ?? "UTC"
   const today = toIsoDate(new Date(), timezone)
+
+  const summary = await db.query.dailyNutritionSummaries.findFirst({
+    where: and(
+      eq(dailyNutritionSummaries.userId, userId),
+      eq(dailyNutritionSummaries.logDate, today)
+    ),
+    columns: { nutrients: true },
+  })
+
+  const parsedSummary = nutrientTotalsSchema.safeParse(summary?.nutrients)
+  if (parsedSummary.success) {
+    return parsedSummary.data
+  }
 
   const rows = await db
     .select({

@@ -1,6 +1,7 @@
 import { and, eq, sql } from "drizzle-orm"
 import { db } from "@/db/connection"
 import {
+  dailyNutritionSummaries,
   foodLogEntries,
   foodLogEntryNutrients,
   nutritionPlans,
@@ -35,22 +36,8 @@ export async function getDailyCalorieSummary(
   const preference: CaloriePreference = profile?.caloriePreference ?? "consumed"
   const today = toIsoDate(new Date(), timezone)
 
-  const [consumedRows, plan] = await Promise.all([
-    db
-      .select({
-        calories: sql<string>`coalesce(sum(${foodLogEntryNutrients.amount}) filter (where ${foodLogEntryNutrients.nutrientKey} = 'calories'), 0)`,
-      })
-      .from(foodLogEntries)
-      .innerJoin(
-        foodLogEntryNutrients,
-        eq(foodLogEntryNutrients.entryId, foodLogEntries.id)
-      )
-      .where(
-        and(
-          eq(foodLogEntries.userId, userId),
-          eq(foodLogEntries.logDate, today)
-        )
-      ),
+  const [consumed, plan] = await Promise.all([
+    getCaloriesConsumed(userId, today),
     db.query.nutritionPlans.findFirst({
       where: and(
         eq(nutritionPlans.userId, userId),
@@ -65,12 +52,10 @@ export async function getDailyCalorieSummary(
     }),
   ])
 
-  const consumedRow = consumedRows[0]
-
   return {
     today,
     timezone,
-    consumed: consumedRow ? Number(consumedRow.calories) : 0,
+    consumed,
     target: plan?.calorieTarget != null ? Number(plan.calorieTarget) : null,
     preference,
     proteinTarget:
@@ -78,4 +63,33 @@ export async function getDailyCalorieSummary(
     carbsTarget: plan?.carbsTarget != null ? Number(plan.carbsTarget) : null,
     fatTarget: plan?.fatTarget != null ? Number(plan.fatTarget) : null,
   }
+}
+
+async function getCaloriesConsumed(userId: string, today: string) {
+  const summary = await db.query.dailyNutritionSummaries.findFirst({
+    where: and(
+      eq(dailyNutritionSummaries.userId, userId),
+      eq(dailyNutritionSummaries.logDate, today)
+    ),
+    columns: { calories: true },
+  })
+
+  if (summary) {
+    return Number(summary.calories)
+  }
+
+  const [row] = await db
+    .select({
+      calories: sql<string>`coalesce(sum(${foodLogEntryNutrients.amount}) filter (where ${foodLogEntryNutrients.nutrientKey} = 'calories'), 0)`,
+    })
+    .from(foodLogEntries)
+    .innerJoin(
+      foodLogEntryNutrients,
+      eq(foodLogEntryNutrients.entryId, foodLogEntries.id)
+    )
+    .where(
+      and(eq(foodLogEntries.userId, userId), eq(foodLogEntries.logDate, today))
+    )
+
+  return row ? Number(row.calories) : 0
 }

@@ -1,7 +1,8 @@
 "use client"
 
-import { useRouter } from "next/navigation"
+import { useQueryClient } from "@tanstack/react-query"
 import { useEffect } from "react"
+import { queryKeys } from "@/lib/app-cache/query-keys"
 
 type TimezoneSyncProps = {
   initialTimezone: string
@@ -12,7 +13,7 @@ function getBrowserTimezone() {
 }
 
 export function TimezoneSync({ initialTimezone }: TimezoneSyncProps) {
-  const router = useRouter()
+  const queryClient = useQueryClient()
 
   useEffect(() => {
     const timezone = getBrowserTimezone()
@@ -32,7 +33,14 @@ export function TimezoneSync({ initialTimezone }: TimezoneSyncProps) {
       })
 
       if (response.ok) {
-        router.refresh()
+        void queryClient.invalidateQueries({ queryKey: queryKeys.bootstrap })
+        void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard })
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.calorieSummary,
+        })
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.foodHistory(20),
+        })
       }
     }
 
@@ -45,7 +53,7 @@ export function TimezoneSync({ initialTimezone }: TimezoneSyncProps) {
     })
 
     return () => controller.abort()
-  }, [initialTimezone, router])
+  }, [initialTimezone, queryClient])
 
   return null
 }

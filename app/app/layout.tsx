@@ -3,6 +3,7 @@ import { redirect } from "next/navigation"
 import { db } from "@/db/connection"
 import { userProfiles } from "@/db/schema"
 import { getSession } from "@/lib/session"
+import { AppBootstrap } from "./_components/app-bootstrap"
 import { DashboardHeader } from "./_components/dashboard-header"
 import { TimezoneSync } from "./_components/timezone-sync"
 
@@ -29,6 +30,7 @@ export default async function AppLayout({
   return (
     <>
       <TimezoneSync initialTimezone={userProfile.timezone} />
+      <AppBootstrap />
       {children}
       <DashboardHeader />
     </>
