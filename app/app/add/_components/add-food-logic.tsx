@@ -96,7 +96,7 @@ async function postFoodLog(input: LogFoodInput) {
   return logFoodResponseSchema.parse(await readJsonResponse(response))
 }
 
-function getHourInTimezone(date: Date, timezone: string) {
+export function getHourInTimezone(date: Date, timezone: string) {
   const hour = Number(
     new Intl.DateTimeFormat("en-US", {
       hour: "numeric",
@@ -108,7 +108,7 @@ function getHourInTimezone(date: Date, timezone: string) {
   return Number.isFinite(hour) ? hour : date.getHours()
 }
 
-function dateFromIsoDate(value: string) {
+export function dateFromIsoDate(value: string) {
   const parts = value.split("-")
   const year = Number(parts[0])
   const month = Number(parts[1])
@@ -123,7 +123,7 @@ function dateFromIsoDate(value: string) {
   return new Date(year, month - 1, day)
 }
 
-function formatHourLabel(hour: number) {
+export function formatHourLabel(hour: number) {
   const h12 = hour % 12 === 0 ? 12 : hour % 12
   const suffix = hour < 12 ? "AM" : "PM"
   return `${h12} ${suffix}`
@@ -761,7 +761,7 @@ function DrumColumn({
   )
 }
 
-function HeaderChips({
+export function HeaderChips({
   selectedDate,
   selectedHour,
   todayDate,
@@ -888,7 +888,7 @@ function HeaderChips({
   )
 }
 
-function NavTabs() {
+export function NavTabs() {
   const pathname = usePathname()
 
   return (
@@ -1123,7 +1123,7 @@ function PendingFoodsSheet({
   )
 }
 
-function inferMealType(
+export function inferMealType(
   hour: number
 ): "breakfast" | "lunch" | "dinner" | "snack" {
   if (hour >= 5 && hour < 11) return "breakfast"
