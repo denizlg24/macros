@@ -2,7 +2,7 @@
 
 import { useQueryClient } from "@tanstack/react-query"
 import type { IScannerControls } from "@zxing/browser"
-import { Barcode, CameraOff, LoaderCircle, RotateCcw } from "lucide-react"
+import { Barcode, CameraOff, LoaderCircle, Plus, RotateCcw } from "lucide-react"
 import { useRouter } from "next/navigation"
 import {
   type RefObject,
@@ -79,15 +79,26 @@ type ScanState =
   | "scanning"
   | "looking-up"
   | "found"
+  | "not-found"
   | "camera-error"
   | "lookup-error"
 
+class FoodLookupError extends Error {
+  constructor(
+    message: string,
+    readonly status: number
+  ) {
+    super(message)
+  }
+}
+
 async function readJsonResponse(response: Response) {
   if (!response.ok) {
-    throw new Error(
+    throw new FoodLookupError(
       response.status === 404
         ? "No food found for this barcode."
-        : `Request failed with ${response.status}`
+        : `Request failed with ${response.status}`,
+      response.status
     )
   }
 
@@ -169,15 +180,18 @@ function ScannerViewport({
   message,
   barcode,
   onRetry,
+  onCreateFood,
 }: {
   videoRef: RefObject<HTMLVideoElement | null>
   state: ScanState
   message: string | null
   barcode: string | null
   onRetry: () => void
+  onCreateFood: () => void
 }) {
   const busy = state === "starting" || state === "looking-up"
   const error = state === "camera-error" || state === "lookup-error"
+  const notFound = state === "not-found"
 
   return (
     <div className="relative min-h-0 flex-1 overflow-hidden bg-black">
@@ -207,7 +221,7 @@ function ScannerViewport({
           <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-muted">
             {busy ? (
               <LoaderCircle className="size-5 animate-spin" />
-            ) : error ? (
+            ) : error || notFound ? (
               <CameraOff className="size-5" />
             ) : (
               <Barcode className="size-5" />
@@ -217,14 +231,28 @@ function ScannerViewport({
             <p className="text-sm font-semibold">
               {state === "looking-up"
                 ? "Finding food"
-                : error
-                  ? "Scanner paused"
-                  : "Align the barcode"}
+                : notFound
+                  ? "Barcode not found"
+                  : error
+                    ? "Scanner paused"
+                    : "Align the barcode"}
             </p>
             <p className="truncate text-xs text-muted-foreground">
-              {barcode ?? message ?? "Place the barcode inside the frame."}
+              {notFound
+                ? "Add nutrition details for this barcode."
+                : (barcode ?? message ?? "Place the barcode inside the frame.")}
             </p>
           </div>
+          {notFound ? (
+            <button
+              type="button"
+              onClick={onCreateFood}
+              className="flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-foreground px-3 text-xs font-semibold text-background"
+            >
+              <Plus className="size-4" />
+              Add
+            </button>
+          ) : null}
           {error ? (
             <button
               type="button"
@@ -317,16 +345,18 @@ function ScanLogic({
       setSelectedFood(body.item)
       setScanState("found")
     } catch (error) {
+      if (error instanceof FoodLookupError && error.status === 404) {
+        setScanState("not-found")
+        setMessage(error.message)
+        setCreateFoodOpen(true)
+        lastLookupRef.current = null
+        return
+      }
+
       setScanState("lookup-error")
       setMessage(
         error instanceof Error ? error.message : "Could not find that barcode."
       )
-      if (
-        error instanceof Error &&
-        error.message === "No food found for this barcode."
-      ) {
-        setCreateFoodOpen(true)
-      }
       lastLookupRef.current = null
     } finally {
       lookupInFlightRef.current = false
@@ -546,6 +576,7 @@ function ScanLogic({
         message={message ?? `${formatHourLabel(selectedHour)} log time`}
         barcode={detectedBarcode}
         onRetry={handleRetry}
+        onCreateFood={() => setCreateFoodOpen(true)}
       />
 
       <FoodDetailDrawer

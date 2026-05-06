@@ -181,7 +181,7 @@ export function CreateFoodDrawer({
       onOpenChange={(nextOpen) => !nextOpen && onClose()}
       repositionInputs={false}
     >
-      <DrawerContent className="flex h-[calc(100dvh-4rem)]! max-h-none! flex-col rounded-none">
+      <DrawerContent className="z-70! flex h-[calc(100dvh-4rem)]! max-h-none! flex-col rounded-none">
         <VisuallyHidden>
           <DrawerTitle>Create food</DrawerTitle>
           <DrawerDescription>Add a food for this barcode.</DrawerDescription>
