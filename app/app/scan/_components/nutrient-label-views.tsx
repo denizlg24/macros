@@ -108,6 +108,15 @@ interface RowInputProps {
   scaleFactor: number
 }
 
+interface AdditionalMicronutrientsProps {
+  drafts: Record<string, string>
+  setDraft: (key: NutrientKey, raw: string) => void
+  unitPref: UnitPref
+  scaleFactor: number
+  cycleUnit: (key: ToggleableNutrientKey) => void
+  excludedKeys: ReadonlySet<NutrientKey>
+}
+
 function NumericInput({
   nutrientKey,
   drafts,
@@ -141,6 +150,80 @@ function NumericInput({
   )
 }
 
+function AdditionalMicronutrients({
+  drafts,
+  setDraft,
+  unitPref,
+  scaleFactor,
+  cycleUnit,
+  excludedKeys,
+}: AdditionalMicronutrientsProps) {
+  const sections = NUTRIENT_SECTIONS.filter(
+    (section) => section.title === "Vitamins" || section.title === "Minerals"
+  )
+    .map((section) => ({
+      ...section,
+      keys: section.keys.filter((key) => !excludedKeys.has(key)),
+    }))
+    .filter((section) => section.keys.length > 0)
+
+  if (sections.length === 0) return null
+
+  return (
+    <section className="mt-3 border-t border-border pt-3">
+      <h3 className="text-sm font-semibold">
+        Additional vitamins and minerals
+      </h3>
+      <div className="mt-3 space-y-4">
+        {sections.map((section) => (
+          <div key={section.title}>
+            <p className="mb-2 text-xs font-medium text-muted-foreground">
+              {section.title}
+            </p>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {section.keys.map((key) => {
+                const def = nutrientDefinitionsInput.find(
+                  (item) => item.key === key
+                )
+                if (!def) return null
+                const isToggleable = isToggleableNutrient(key)
+                return (
+                  <div key={key} className="grid grid-cols-[1fr_auto] gap-2">
+                    <span className="min-w-0 text-xs text-muted-foreground">
+                      <span className="block truncate">{def.label}</span>
+                      <span className="inline-flex items-center gap-1">
+                        {getInputUnit(key, unitPref)}
+                        {isToggleable ? (
+                          <button
+                            type="button"
+                            onClick={() => cycleUnit(key)}
+                            aria-label={`Toggle ${def.label} unit`}
+                            className="text-muted-foreground hover:text-foreground"
+                          >
+                            <Repeat className="size-3" />
+                          </button>
+                        ) : null}
+                      </span>
+                    </span>
+                    <NumericInput
+                      nutrientKey={key}
+                      drafts={drafts}
+                      setDraft={setDraft}
+                      unitPref={unitPref}
+                      scaleFactor={scaleFactor}
+                      ariaLabel={`${def.label} value`}
+                    />
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
 export function USLabel({
   drafts,
   setDraft,
@@ -157,6 +240,15 @@ export function USLabel({
   const vitDLabel = "Vitamin D"
   const vitALabel = "Vitamin A"
   const vitELabel = "Vitamin E"
+  const displayedMicronutrients = new Set<NutrientKey>([
+    "d",
+    "calcium",
+    "iron",
+    "potassium",
+    "a",
+    "c",
+    "e",
+  ])
 
   const macroRow = (
     key: NutrientKey,
@@ -281,6 +373,15 @@ export function USLabel({
       {microRow("c", "Vitamin C")}
       {microRow("e", vitELabel)}
 
+      <AdditionalMicronutrients
+        drafts={drafts}
+        setDraft={setDraft}
+        unitPref={unitPref}
+        scaleFactor={scaleFactor}
+        cycleUnit={cycleUnit}
+        excludedKeys={displayedMicronutrients}
+      />
+
       <p className="pt-2 text-[10px] leading-tight text-muted-foreground">
         * Percent Daily Values are based on a 2,000 calorie diet.
       </p>
@@ -345,6 +446,7 @@ export function EULabel({
   }
 
   const sodiumLabel = unitPref.sodium === "salt-g" ? "Salt" : "Sodium"
+  const displayedMicronutrients = new Set<NutrientKey>(["sodium"])
 
   return (
     <div className="rounded-md border border-border bg-background">
@@ -372,6 +474,16 @@ export function EULabel({
         {row("fiber", "Fibre")}
         {row("protein", "Protein")}
         {row("sodium", sodiumLabel)}
+      </div>
+      <div className="px-3 pb-3">
+        <AdditionalMicronutrients
+          drafts={drafts}
+          setDraft={setDraft}
+          unitPref={unitPref}
+          scaleFactor={fixedScale}
+          cycleUnit={cycleUnit}
+          excludedKeys={displayedMicronutrients}
+        />
       </div>
     </div>
   )
