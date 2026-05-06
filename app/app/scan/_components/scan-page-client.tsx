@@ -29,6 +29,11 @@ import {
   logFoodResponseSchema,
 } from "@/lib/foods/contracts"
 import {
+  readPendingFoods,
+  subscribeToPendingFoods,
+  writePendingFoods,
+} from "@/lib/foods/pending-foods"
+import {
   addOptimisticNutritionEntry,
   type OptimisticDailyMacros,
   putConfirmedNutritionTotals,
@@ -379,9 +384,15 @@ function ScanLogic({
   useEffect(() => {
     document.documentElement.classList.add("macros-add-food-scroll-lock")
     mountedRef.current = true
+    const storedFoods = readPendingFoods()
+    if (storedFoods.length > 0) {
+      setPendingFoods(storedFoods)
+    }
+    const unsubscribe = subscribeToPendingFoods(setPendingFoods)
 
     return () => {
       mountedRef.current = false
+      unsubscribe()
       document.documentElement.classList.remove("macros-add-food-scroll-lock")
     }
   }, [])
@@ -542,22 +553,30 @@ function ScanLogic({
     (input: LogFoodInput, macros: OptimisticDailyMacros) => {
       if (!selectedFood) return Promise.resolve()
       const clientMutationId = crypto.randomUUID()
-      setPendingFoods((prev) => [
-        ...prev,
-        {
-          uid: clientMutationId,
-          food: selectedFood,
-          input: { ...input, clientMutationId },
-          macros,
-        },
-      ])
+      setPendingFoods((prev) => {
+        const next = [
+          ...prev,
+          {
+            uid: clientMutationId,
+            food: selectedFood,
+            input: { ...input, clientMutationId },
+            macros,
+          },
+        ]
+        window.queueMicrotask(() => writePendingFoods(next))
+        return next
+      })
       return Promise.resolve()
     },
     [selectedFood]
   )
 
   const removePending = useCallback((uid: string) => {
-    setPendingFoods((prev) => prev.filter((food) => food.uid !== uid))
+    setPendingFoods((prev) => {
+      const next = prev.filter((food) => food.uid !== uid)
+      window.queueMicrotask(() => writePendingFoods(next))
+      return next
+    })
   }, [])
 
   const logAllPending = useCallback(async () => {
@@ -573,6 +592,7 @@ function ScanLogic({
         .reduce((sum, food) => sum + getPendingCalories(food), 0)
 
       setPendingFoods([])
+      writePendingFoods([])
       setPendingSheetOpen(false)
       setExtraConsumed((current) => current + optimisticToday)
 
