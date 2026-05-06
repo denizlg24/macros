@@ -1,6 +1,7 @@
 "use client"
 
 import { Repeat } from "lucide-react"
+import { useState } from "react"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -398,11 +399,30 @@ export function EULabel({
 }: NutrientLabelProps) {
   const fixedScale = 1
   const fixedBasis = "Per 100g"
+  const [energyUnit, setEnergyUnit] = useState<"kcal" | "kj">("kcal")
 
   const energyKcal = drafts.calories
     ? Number.parseFloat(drafts.calories) * fixedScale
     : 0
   const energyKj = energyKcal * 4.184
+  const energyDisplayValue =
+    energyUnit === "kcal" ? formatNumber(energyKcal) : formatNumber(energyKj)
+
+  const commitEnergyInput = (raw: string) => {
+    if (raw.trim() === "") {
+      setDraft("calories", "")
+      return
+    }
+
+    const parsed = Number.parseFloat(raw)
+    if (!Number.isFinite(parsed)) {
+      setDraft("calories", "")
+      return
+    }
+
+    const kcal = energyUnit === "kcal" ? parsed : parsed / 4.184
+    setDraft("calories", kcal.toString())
+  }
 
   const row = (key: NutrientKey, label: string, indent = 0) => {
     const isToggleable = isToggleableNutrient(key)
@@ -459,21 +479,25 @@ export function EULabel({
         <div className="flex items-center justify-between py-2">
           <span className="text-sm font-medium">Energy</span>
           <div className="flex items-center gap-2">
-            <div className="text-right tabular-nums">
-              <div className="text-sm">{Math.round(energyKj)} kJ</div>
-              <div className="text-xs text-muted-foreground">
-                {Math.round(energyKcal)} kcal
-              </div>
-            </div>
-            <NumericInput
-              nutrientKey="calories"
-              drafts={drafts}
-              setDraft={setDraft}
-              unitPref={unitPref}
-              scaleFactor={fixedScale}
-              ariaLabel="Energy calories value"
+            <input
+              type="text"
+              inputMode="decimal"
+              aria-label="Energy value"
+              value={energyDisplayValue}
+              onChange={(event) => commitEnergyInput(event.target.value)}
+              className="h-8 w-20 rounded border border-input bg-background px-2 text-right text-sm tabular-nums focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             />
-            <span className="w-8 text-xs text-muted-foreground">kcal</span>
+            <button
+              type="button"
+              onClick={() =>
+                setEnergyUnit((current) => (current === "kcal" ? "kj" : "kcal"))
+              }
+              aria-label="Toggle energy unit"
+              className="inline-flex w-10 items-center justify-end gap-1 text-xs text-muted-foreground hover:text-foreground"
+            >
+              {energyUnit === "kcal" ? "kcal" : "kJ"}
+              <Repeat className="size-3" />
+            </button>
           </div>
         </div>
         {row("fat", "Fat")}

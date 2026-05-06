@@ -1,4 +1,5 @@
 import {
+  type CreateFoodInput,
   type ExternalFoodNutrition,
   type ExternalFoodSummary,
   externalNutritionResponseSchema,
@@ -34,6 +35,28 @@ async function fetchSourceJson(url: URL) {
     headers: {
       accept: "application/json",
       "x-api-key": process.env.NUTRITION_API_KEY ?? "",
+    },
+    cache: "no-store",
+  })
+
+  if (!response.ok) {
+    throw new NutritionSourceError(
+      `Nutrition API request failed with ${response.status}`,
+      response.status
+    )
+  }
+
+  return response.json()
+}
+
+async function sendSourceJson(url: URL, init: RequestInit) {
+  const response = await fetch(url, {
+    ...init,
+    headers: {
+      accept: "application/json",
+      "content-type": "application/json",
+      "x-api-key": process.env.NUTRITION_API_KEY ?? "",
+      ...init.headers,
     },
     cache: "no-store",
   })
@@ -97,6 +120,41 @@ export async function getNutritionFoodNutrition(
 ): Promise<ExternalFoodNutrition> {
   const json = await fetchSourceJson(buildUrl(`/api/items/${itemId}/nutrition`))
   return externalNutritionResponseSchema.parse(json).data
+}
+
+export async function createNutritionFood(input: {
+  barcode: string
+  name: string
+  brand: string | null
+  serving: CreateFoodInput["servingSizes"][number]
+  nutrients: Record<string, number>
+}): Promise<ExternalFoodSummary> {
+  const payload = {
+    barcode: input.barcode,
+    name: input.name,
+    brand: input.brand,
+    nutrition: {
+      servingLabel: input.serving.label,
+      servingQuantity: input.serving.quantity,
+      servingUnit: input.serving.unit,
+      ...input.nutrients,
+    },
+  }
+
+  try {
+    const json = await sendSourceJson(buildUrl("/api/items/"), {
+      method: "POST",
+      body: JSON.stringify(payload),
+    })
+
+    return externalSummaryResponseSchema.parse(json).data
+  } catch (error) {
+    if (error instanceof NutritionSourceError && error.status === 409) {
+      return getNutritionFoodByBarcode(input.barcode)
+    }
+
+    throw error
+  }
 }
 
 export function getNutritionSourceStatus(error: unknown) {

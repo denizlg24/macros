@@ -37,6 +37,7 @@ import {
   nutrientDefinitionsInput,
 } from "@/lib/foods/nutrients"
 import {
+  createNutritionFood,
   getNutritionFoodNutrition,
   getNutritionFoodSummary,
 } from "@/lib/foods/source"
@@ -358,6 +359,45 @@ export async function createCustomFood(userId: string, input: CreateFoodInput) {
     primaryServing
   )
 
+  if (input.barcode) {
+    const summary = await createNutritionFood({
+      barcode: input.barcode,
+      name: input.name,
+      brand: input.brand,
+      serving: primaryServing,
+      nutrients: nutrientsPerPrimaryServing,
+    })
+    const nutrition = await getNutritionFoodNutrition(summary.id)
+    const foodId = await upsertExternalFood(summary)
+    const snapshotId = await createFoodSnapshot(foodId, summary, nutrition)
+
+    await db
+      .insert(userCustomFoods)
+      .values({
+        userId,
+        foodId,
+      })
+      .onConflictDoNothing({
+        target: [userCustomFoods.userId, userCustomFoods.foodId],
+      })
+
+    return {
+      foodId,
+      snapshotId,
+      summary,
+      nutrition,
+      item: toCustomFoodSearchItem(
+        {
+          id: foodId,
+          barcode: summary.barcode ?? null,
+          name: summary.name,
+          brand: summary.brand ?? null,
+        },
+        nutrition
+      ),
+    }
+  }
+
   return db.transaction(async (tx) => {
     const [food] = await tx
       .insert(foods)
@@ -476,7 +516,6 @@ export async function getCustomFoodSnapshotByBarcode(
       and(
         eq(userCustomFoods.userId, userId),
         isNull(userCustomFoods.deletedAt),
-        eq(foods.source, "custom"),
         eq(foods.barcode, barcode)
       )
     )

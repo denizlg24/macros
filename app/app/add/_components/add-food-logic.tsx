@@ -50,6 +50,11 @@ import {
   logFoodResponseSchema,
 } from "@/lib/foods/contracts"
 import {
+  readPendingFoods,
+  subscribeToPendingFoods,
+  writePendingFoods,
+} from "@/lib/foods/pending-foods"
+import {
   addOptimisticNutritionEntry,
   type OptimisticDailyMacros,
   putConfirmedNutritionTotals,
@@ -996,6 +1001,19 @@ function takeFailedPendingFoods(): PendingFood[] {
   return foods
 }
 
+function dedupePendingFoods(foods: PendingFood[]) {
+  const seen = new Set<string>()
+  const deduped: PendingFood[] = []
+
+  for (const food of foods) {
+    if (seen.has(food.uid)) continue
+    seen.add(food.uid)
+    deduped.push(food)
+  }
+
+  return deduped
+}
+
 export function saveFailedPendingFoods(foods: PendingFood[]) {
   if (foods.length === 0) return
 
@@ -1190,18 +1208,23 @@ export function AddFoodLogic({
 
   useEffect(() => {
     mountedRef.current = true
+    const storedFoods = readPendingFoods()
     const failedFoods = takeFailedPendingFoods()
-    if (failedFoods.length === 0) {
-      return () => {
-        mountedRef.current = false
+    const initialFoods = dedupePendingFoods([...failedFoods, ...storedFoods])
+
+    if (initialFoods.length > 0) {
+      setPendingFoods(initialFoods)
+      writePendingFoods(initialFoods)
+      if (failedFoods.length > 0) {
+        setPendingSheetOpen(true)
       }
     }
 
-    setPendingFoods((prev) => [...failedFoods, ...prev])
-    setPendingSheetOpen(true)
+    const unsubscribe = subscribeToPendingFoods(setPendingFoods)
 
     return () => {
       mountedRef.current = false
+      unsubscribe()
     }
   }, [])
 
@@ -1265,15 +1288,19 @@ export function AddFoodLogic({
     (input: LogFoodInput, macros: OptimisticDailyMacros) => {
       if (!selectedFood) return Promise.resolve()
       const clientMutationId = crypto.randomUUID()
-      setPendingFoods((prev) => [
-        ...prev,
-        {
-          uid: clientMutationId,
-          food: selectedFood,
-          input: { ...input, clientMutationId },
-          macros,
-        },
-      ])
+      setPendingFoods((prev) => {
+        const next = [
+          ...prev,
+          {
+            uid: clientMutationId,
+            food: selectedFood,
+            input: { ...input, clientMutationId },
+            macros,
+          },
+        ]
+        window.queueMicrotask(() => writePendingFoods(next))
+        return next
+      })
       return Promise.resolve()
     },
     [selectedFood]
@@ -1282,33 +1309,41 @@ export function AddFoodLogic({
   const quickAddToPending = useCallback(
     (item: SearchableItem, servingsConsumed: number) => {
       const clientMutationId = crypto.randomUUID()
-      setPendingFoods((prev) => [
-        ...prev,
-        {
-          uid: clientMutationId,
-          food: item,
-          input: {
-            clientMutationId,
-            sourceItemId: item.id,
-            servingsConsumed,
-            eatenAt,
-            logDate,
-            mealType: inferMealType(selectedHour),
+      setPendingFoods((prev) => {
+        const next = [
+          ...prev,
+          {
+            uid: clientMutationId,
+            food: item,
+            input: {
+              clientMutationId,
+              sourceItemId: item.id,
+              servingsConsumed,
+              eatenAt,
+              logDate,
+              mealType: inferMealType(selectedHour),
+            },
+            macros: {
+              calories: (item.caloriesPerServing ?? 0) * servingsConsumed,
+              protein: (item.proteinPerServing ?? 0) * servingsConsumed,
+              carbs: (item.carbsPerServing ?? 0) * servingsConsumed,
+              fat: (item.fatPerServing ?? 0) * servingsConsumed,
+            },
           },
-          macros: {
-            calories: (item.caloriesPerServing ?? 0) * servingsConsumed,
-            protein: (item.proteinPerServing ?? 0) * servingsConsumed,
-            carbs: (item.carbsPerServing ?? 0) * servingsConsumed,
-            fat: (item.fatPerServing ?? 0) * servingsConsumed,
-          },
-        },
-      ])
+        ]
+        window.queueMicrotask(() => writePendingFoods(next))
+        return next
+      })
     },
     [eatenAt, logDate, selectedHour]
   )
 
   const removePending = useCallback((uid: string) => {
-    setPendingFoods((prev) => prev.filter((f) => f.uid !== uid))
+    setPendingFoods((prev) => {
+      const next = prev.filter((f) => f.uid !== uid)
+      window.queueMicrotask(() => writePendingFoods(next))
+      return next
+    })
   }, [])
 
   const logAllPending = useCallback(async () => {
@@ -1324,6 +1359,7 @@ export function AddFoodLogic({
         .reduce((sum, food) => sum + getPendingCalories(food), 0)
 
       setPendingFoods([])
+      writePendingFoods([])
       setPendingSheetOpen(false)
       setExtraConsumed((prev) => prev + optimisticToday)
 
