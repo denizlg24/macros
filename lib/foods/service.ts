@@ -1,4 +1,14 @@
-import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm"
+import {
+  and,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  isNotNull,
+  isNull,
+  or,
+  sql,
+} from "drizzle-orm"
 
 import { db } from "@/db/connection"
 import {
@@ -9,9 +19,11 @@ import {
   foodNutritionSnapshots,
   foods,
   nutrientDefinitions,
+  userCustomFoods,
   userProfiles,
 } from "@/db/schema"
 import type {
+  CreateFoodInput,
   ExternalFoodNutrition,
   ExternalFoodSummary,
   FoodHistoryItem,
@@ -19,6 +31,7 @@ import type {
   LogFoodInput,
   LogFoodResult,
 } from "@/lib/foods/contracts"
+import { externalFoodNutritionSchema } from "@/lib/foods/contracts"
 import {
   type NutrientKey,
   nutrientDefinitionsInput,
@@ -53,6 +66,7 @@ export function toFoodSearchItem(summary: ExternalFoodSummary): FoodSearchItem {
     sourceUpdatedAt: summary.updatedAt ?? null,
     rank: numberOrNull(summary.rank),
     score: numberOrNull(summary.score),
+    isUserFood: false,
   }
 }
 
@@ -96,8 +110,10 @@ async function getUserTimezone(userId: string) {
   return profile?.timezone ?? "UTC"
 }
 
-async function ensureNutrientDefinitionRows() {
-  await db
+async function ensureNutrientDefinitionRows(
+  executor: typeof db | DbTransaction = db
+) {
+  await executor
     .insert(nutrientDefinitions)
     .values(nutrientDefinitionsInput)
     .onConflictDoUpdate({
@@ -141,6 +157,27 @@ async function upsertExternalFood(summary: ExternalFoodSummary) {
   return upserted.id
 }
 
+function toCustomFoodSearchItem(
+  food: Pick<typeof foods.$inferSelect, "id" | "barcode" | "name" | "brand">,
+  nutrition: ExternalFoodNutrition
+): FoodSearchItem {
+  return {
+    id: food.id,
+    barcode: food.barcode,
+    name: food.name,
+    brand: food.brand,
+    servingLabel: nutrition.servingLabel,
+    caloriesPerServing: nutrition.nutrients["calories"] ?? null,
+    proteinPerServing: nutrition.nutrients["protein"] ?? null,
+    carbsPerServing: nutrition.nutrients["carbs"] ?? null,
+    fatPerServing: nutrition.nutrients["fat"] ?? null,
+    sourceUpdatedAt: null,
+    rank: null,
+    score: null,
+    isUserFood: true,
+  }
+}
+
 async function getLatestSnapshot(foodId: string) {
   return db.query.foodNutritionSnapshots.findFirst({
     where: eq(foodNutritionSnapshots.foodId, foodId),
@@ -151,6 +188,30 @@ async function getLatestSnapshot(foodId: string) {
       },
     },
   })
+}
+
+async function getLatestSnapshotsByFoodId(foodIds: string[]) {
+  if (foodIds.length === 0) return new Map<string, ExternalFoodNutrition>()
+
+  const rows = await db
+    .select({
+      foodId: foodNutritionSnapshots.foodId,
+      rawNutrition: foodNutritionSnapshots.rawNutrition,
+    })
+    .from(foodNutritionSnapshots)
+    .where(inArray(foodNutritionSnapshots.foodId, foodIds))
+    .orderBy(desc(foodNutritionSnapshots.fetchedAt))
+
+  const snapshots = new Map<string, ExternalFoodNutrition>()
+  for (const row of rows) {
+    if (snapshots.has(row.foodId)) continue
+    const parsed = externalFoodNutritionSchema.safeParse(row.rawNutrition)
+    if (parsed.success) {
+      snapshots.set(row.foodId, parsed.data)
+    }
+  }
+
+  return snapshots
 }
 
 function nutrientsHaveDrifted(
@@ -197,11 +258,12 @@ function nutrientsHaveDrifted(
 async function createFoodSnapshot(
   foodId: string,
   summary: ExternalFoodSummary,
-  nutrition: ExternalFoodNutrition
+  nutrition: ExternalFoodNutrition,
+  executor: typeof db | DbTransaction = db
 ) {
-  await ensureNutrientDefinitionRows()
+  await ensureNutrientDefinitionRows(executor)
 
-  const [snapshot] = await db
+  const [snapshot] = await executor
     .insert(foodNutritionSnapshots)
     .values({
       foodId,
@@ -223,10 +285,39 @@ async function createFoodSnapshot(
   )
 
   if (nutrientRows.length > 0) {
-    await db.insert(foodNutrientValues).values(nutrientRows)
+    await executor.insert(foodNutrientValues).values(nutrientRows)
   }
 
   return snapshot.id
+}
+
+function isReference100gServing(
+  serving: CreateFoodInput["servingSizes"][number]
+) {
+  return (
+    serving.label.trim().toLowerCase() === "100g" &&
+    serving.unit.trim().toLowerCase() === "g" &&
+    Math.abs(serving.quantity - 100) < snapshotDriftTolerance
+  )
+}
+
+function getPrimaryServing(input: CreateFoodInput) {
+  return (
+    input.servingSizes.find((serving) => !isReference100gServing(serving)) ??
+    input.servingSizes[0]
+  )
+}
+
+function scaleNutrientsForServing(
+  nutrients: CreateFoodInput["nutrients"],
+  serving: CreateFoodInput["servingSizes"][number]
+) {
+  const scale =
+    serving.unit.trim().toLowerCase() === "g" ? serving.quantity / 100 : 1
+
+  return Object.fromEntries(
+    Object.entries(nutrients).map(([key, amount]) => [key, amount * scale])
+  )
 }
 
 export async function ensureExternalFoodSnapshot(
@@ -257,6 +348,195 @@ export async function ensureExternalFoodSnapshot(
     nutrition,
     createdSnapshot: true,
   }
+}
+
+export async function createCustomFood(userId: string, input: CreateFoodInput) {
+  const nowIso = new Date().toISOString()
+  const primaryServing = getPrimaryServing(input)
+  const nutrientsPerPrimaryServing = scaleNutrientsForServing(
+    input.nutrients,
+    primaryServing
+  )
+
+  return db.transaction(async (tx) => {
+    const [food] = await tx
+      .insert(foods)
+      .values({
+        ownerUserId: userId,
+        source: "custom",
+        externalItemId: null,
+        barcode: input.barcode ?? null,
+        name: input.name,
+        brand: input.brand,
+      })
+      .returning({
+        id: foods.id,
+        barcode: foods.barcode,
+        name: foods.name,
+        brand: foods.brand,
+      })
+
+    if (!food) {
+      throw new Error("Failed to create food")
+    }
+
+    const nutrition = externalFoodNutritionSchema.parse({
+      itemId: food.id,
+      servingLabel: primaryServing.label,
+      servingQnty: primaryServing.quantity,
+      servingQuantity: primaryServing.quantity,
+      servingUnit: primaryServing.unit,
+      nutrients: nutrientsPerPrimaryServing,
+      servingSizes: input.servingSizes,
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    })
+
+    const summary: ExternalFoodSummary = {
+      id: food.id,
+      barcode: food.barcode,
+      name: food.name,
+      brand: food.brand,
+      servingLabel: nutrition.servingLabel,
+      caloriesPerServing: nutrition.nutrients["calories"] ?? null,
+      proteinPerServing: nutrition.nutrients["protein"] ?? null,
+      carbsPerServing: nutrition.nutrients["carbs"] ?? null,
+      fatPerServing: nutrition.nutrients["fat"] ?? null,
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    }
+
+    const snapshotId = await createFoodSnapshot(food.id, summary, nutrition, tx)
+
+    await tx.insert(userCustomFoods).values({
+      userId,
+      foodId: food.id,
+    })
+
+    return {
+      foodId: food.id,
+      snapshotId,
+      summary,
+      nutrition,
+      item: toCustomFoodSearchItem(food, nutrition),
+    }
+  })
+}
+
+export async function getCustomFoodSnapshot(userId: string, foodId: string) {
+  const customFood = await db.query.userCustomFoods.findFirst({
+    where: and(
+      eq(userCustomFoods.userId, userId),
+      eq(userCustomFoods.foodId, foodId),
+      isNull(userCustomFoods.deletedAt)
+    ),
+    with: {
+      food: {
+        columns: {
+          id: true,
+          barcode: true,
+          name: true,
+          brand: true,
+        },
+      },
+    },
+  })
+
+  if (!customFood) return null
+
+  const snapshot = await getLatestSnapshot(customFood.food.id)
+  const parsed = externalFoodNutritionSchema.safeParse(snapshot?.rawNutrition)
+
+  if (!snapshot || !parsed.success) {
+    return null
+  }
+
+  return {
+    foodId: customFood.food.id,
+    snapshotId: snapshot.id,
+    item: toCustomFoodSearchItem(customFood.food, parsed.data),
+    nutrition: parsed.data,
+  }
+}
+
+export async function getUserCustomFoods(
+  userId: string
+): Promise<FoodSearchItem[]> {
+  const rows = await db.query.userCustomFoods.findMany({
+    where: and(
+      eq(userCustomFoods.userId, userId),
+      isNull(userCustomFoods.deletedAt)
+    ),
+    orderBy: desc(userCustomFoods.createdAt),
+    with: {
+      food: {
+        columns: {
+          id: true,
+          barcode: true,
+          name: true,
+          brand: true,
+        },
+      },
+    },
+  })
+
+  const items: FoodSearchItem[] = []
+  const snapshots = await getLatestSnapshotsByFoodId(
+    rows.map((row) => row.food.id)
+  )
+  for (const row of rows) {
+    const nutrition = snapshots.get(row.food.id)
+    if (nutrition) {
+      items.push(toCustomFoodSearchItem(row.food, nutrition))
+    }
+  }
+
+  return items
+}
+
+export async function searchUserCustomFoods(
+  userId: string,
+  query: string | undefined,
+  brand: string | undefined,
+  limit: number
+): Promise<FoodSearchItem[]> {
+  const clauses = [
+    eq(userCustomFoods.userId, userId),
+    isNull(userCustomFoods.deletedAt),
+  ]
+
+  if (query) {
+    const pattern = `%${query}%`
+    clauses.push(or(ilike(foods.name, pattern), ilike(foods.brand, pattern))!)
+  }
+
+  if (brand) {
+    clauses.push(ilike(foods.brand, `%${brand}%`))
+  }
+
+  const rows = await db
+    .select({
+      id: foods.id,
+      barcode: foods.barcode,
+      name: foods.name,
+      brand: foods.brand,
+    })
+    .from(userCustomFoods)
+    .innerJoin(foods, eq(foods.id, userCustomFoods.foodId))
+    .where(and(...clauses))
+    .orderBy(desc(userCustomFoods.createdAt))
+    .limit(limit)
+
+  const items: FoodSearchItem[] = []
+  const snapshots = await getLatestSnapshotsByFoodId(rows.map((row) => row.id))
+  for (const row of rows) {
+    const nutrition = snapshots.get(row.id)
+    if (nutrition) {
+      items.push(toCustomFoodSearchItem(row, nutrition))
+    }
+  }
+
+  return items
 }
 
 export async function getFoodHistory(
@@ -375,6 +655,7 @@ export async function getFoodHistory(
       sourceUpdatedAt: null,
       rank: null,
       score: null,
+      isUserFood: false,
       lastLoggedAt: row.eatenAt?.toISOString() ?? null,
       lastLogDate: row.logDate,
       lastMealType: row.mealType,
@@ -461,8 +742,15 @@ export async function logExternalFood(
   const logDate = input.logDate ?? toIsoDate(eatenAt, timezone)
   const mealType =
     input.mealType ?? inferMealType(getHourInTimezone(eatenAt, timezone))
-  const { foodId, snapshotId, summary, nutrition } =
-    await ensureExternalFoodSnapshot(input.sourceItemId)
+  const customFood = await getCustomFoodSnapshot(userId, input.sourceItemId)
+  const resolvedFood = customFood
+    ? {
+        foodId: customFood.foodId,
+        snapshotId: customFood.snapshotId,
+        summary: customFood.item,
+        nutrition: customFood.nutrition,
+      }
+    : await ensureExternalFoodSnapshot(input.sourceItemId)
 
   const logged = await db.transaction(async (tx) => {
     const [entry] = await tx
@@ -474,19 +762,21 @@ export async function logExternalFood(
         eatenAt,
         mealType,
         entryType: "food",
-        foodId,
-        snapshotId,
-        foodName: summary.name,
-        brand: summary.brand ?? null,
-        servingLabel: nutrition.servingLabel,
-        servingQuantity: toNumericString(nutrition.servingQuantity),
-        servingUnit: nutrition.servingUnit,
+        foodId: resolvedFood.foodId,
+        snapshotId: resolvedFood.snapshotId,
+        foodName: resolvedFood.summary.name,
+        brand: resolvedFood.summary.brand ?? null,
+        servingLabel: resolvedFood.nutrition.servingLabel,
+        servingQuantity: toNumericString(
+          resolvedFood.nutrition.servingQuantity
+        ),
+        servingUnit: resolvedFood.nutrition.servingUnit,
         servingsConsumed: toNumericString(input.servingsConsumed),
         notes: input.notes,
       })
       .returning({ id: foodLogEntries.id })
 
-    const nutrientRows = Object.entries(nutrition.nutrients).map(
+    const nutrientRows = Object.entries(resolvedFood.nutrition.nutrients).map(
       ([nutrientKey, amount]) => ({
         entryId: entry.id,
         nutrientKey: nutrientKey as NutrientKey,
@@ -506,8 +796,8 @@ export async function logExternalFood(
   return {
     entryId: logged.entryId,
     clientMutationId: input.clientMutationId,
-    foodId,
-    snapshotId,
+    foodId: resolvedFood.foodId,
+    snapshotId: resolvedFood.snapshotId,
     logDate,
     eatenAt: eatenAt.toISOString(),
     mealType,

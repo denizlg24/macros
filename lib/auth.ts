@@ -7,13 +7,50 @@ import { schema } from "@/db/schema"
 import { sendEmail } from "@/lib/email"
 
 const defaultPostVerificationPath = "/register/complete"
+const vercelPreviewOriginPattern =
+  "https://macros-*-denizlg24s-projects.vercel.app"
+
+function toHttpsOrigin(host: string | undefined) {
+  if (!host) return null
+  return `https://${host.replace(/^https?:\/\//, "")}`
+}
+
+function getAuthBaseUrl() {
+  if (process.env.VERCEL_ENV === "preview") {
+    return (
+      toHttpsOrigin(process.env.VERCEL_URL) ??
+      process.env.BETTER_AUTH_URL ??
+      "http://localhost:3000"
+    )
+  }
+
+  return (
+    process.env.BETTER_AUTH_URL ??
+    toHttpsOrigin(process.env.VERCEL_PROJECT_PRODUCTION_URL) ??
+    toHttpsOrigin(process.env.VERCEL_URL) ??
+    "http://localhost:3000"
+  )
+}
+
+function getTrustedOrigins() {
+  return Array.from(
+    new Set(
+      [
+        getAuthBaseUrl(),
+        toHttpsOrigin(process.env.VERCEL_URL),
+        toHttpsOrigin(process.env.VERCEL_BRANCH_URL),
+        vercelPreviewOriginPattern,
+      ].filter((origin): origin is string => Boolean(origin))
+    )
+  )
+}
 
 function getAppOrigin(request?: Request) {
   if (request) {
     return new URL(request.url).origin
   }
 
-  return process.env.BETTER_AUTH_URL ?? "http://localhost:3000"
+  return getAuthBaseUrl()
 }
 
 function getEmailVerificationUrl(token: string, request?: Request) {
@@ -25,6 +62,8 @@ function getEmailVerificationUrl(token: string, request?: Request) {
 }
 
 export const auth = betterAuth({
+  baseURL: getAuthBaseUrl(),
+  trustedOrigins: getTrustedOrigins(),
   database: drizzleAdapter(db, {
     provider: "pg",
     schema,

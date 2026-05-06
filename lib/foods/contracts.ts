@@ -87,6 +87,35 @@ export const foodRevalidateBodySchema = z.object({
   itemIds: z.array(z.uuid()).min(1).max(50),
 })
 
+const nutrientAmountSchema = z
+  .union([z.number(), z.string()])
+  .transform(Number)
+  .pipe(z.number().min(0).finite())
+
+export const createFoodServingSizeSchema = z.object({
+  label: z.string().trim().min(1).max(80),
+  quantity: z.coerce.number().positive().max(999_999),
+  unit: z.string().trim().min(1).max(24),
+})
+
+export const createFoodBodySchema = z.object({
+  clientMutationId: z.uuid().optional(),
+  barcode: z.string().trim().min(1).max(128).optional(),
+  name: z.string().trim().min(1).max(240),
+  brand: z
+    .string()
+    .trim()
+    .max(160)
+    .optional()
+    .transform((value) => value || null),
+  servingSizes: z.array(createFoodServingSizeSchema).min(1).max(12),
+  nutrients: z
+    .record(z.string(), nutrientAmountSchema)
+    .refine((nutrients) => Object.keys(nutrients).every(isNutrientKey), {
+      message: "Unknown nutrient key",
+    }),
+})
+
 export const mealTypeSchema = z.enum(["breakfast", "lunch", "dinner", "snack"])
 
 export const foodSearchItemSchema = z.object({
@@ -102,6 +131,7 @@ export const foodSearchItemSchema = z.object({
   sourceUpdatedAt: z.string().nullable(),
   rank: z.number().nullable(),
   score: z.number().nullable(),
+  isUserFood: z.boolean().default(false),
 })
 
 export const foodHistoryItemSchema = foodSearchItemSchema.extend({
@@ -135,6 +165,20 @@ export const foodRevalidateResponseSchema = z.object({
       createdSnapshot: z.boolean(),
     })
   ),
+  fetchedAt: z.string(),
+})
+
+export const createFoodResponseSchema = z.object({
+  clientMutationId: z.uuid().optional(),
+  item: foodSearchItemSchema,
+  nutrition: externalFoodNutritionSchema,
+  localFoodId: z.uuid(),
+  snapshotId: z.uuid(),
+  fetchedAt: z.string(),
+})
+
+export const userCustomFoodsResponseSchema = z.object({
+  items: z.array(foodSearchItemSchema),
   fetchedAt: z.string(),
 })
 
@@ -189,4 +233,5 @@ export interface LogFoodResult {
 export type FoodSearchParams = z.infer<typeof foodSearchParamsSchema>
 export type ExternalFoodSummary = z.infer<typeof externalFoodSummarySchema>
 export type ExternalFoodNutrition = z.infer<typeof externalFoodNutritionSchema>
+export type CreateFoodInput = z.infer<typeof createFoodBodySchema>
 export type LogFoodInput = z.infer<typeof logFoodBodySchema>

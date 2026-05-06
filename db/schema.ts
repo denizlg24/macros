@@ -250,6 +250,29 @@ export const foods = pgTable(
   ]
 )
 
+export const userCustomFoods = pgTable(
+  "user_custom_foods",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("userId")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    foodId: uuid("foodId")
+      .notNull()
+      .references(() => foods.id, { onDelete: "cascade" }),
+    ...timestamps,
+    deletedAt: timestamp("deletedAt", { withTimezone: true }),
+  },
+  (table) => [
+    unique("user_custom_foods_user_food_unique").on(table.userId, table.foodId),
+    index("user_custom_foods_user_created_idx").on(
+      table.userId,
+      table.createdAt.desc()
+    ),
+    index("user_custom_foods_food_id_idx").on(table.foodId),
+  ]
+)
+
 export const foodNutritionSnapshots = pgTable(
   "food_nutrition_snapshots",
   {
@@ -740,6 +763,7 @@ export const userRelations = relations(user, ({ many, one }) => ({
   profile: one(userProfiles),
   nutritionPlans: many(nutritionPlans),
   foods: many(foods),
+  customFoods: many(userCustomFoods),
   recipes: many(recipes),
   foodLogEntries: many(foodLogEntries),
   weightGoals: many(weightGoals),
@@ -786,10 +810,25 @@ export const nutrientTargetRelations = relations(
 
 export const foodRelations = relations(foods, ({ many, one }) => ({
   owner: one(user, { fields: [foods.ownerUserId], references: [user.id] }),
+  customFoodOwners: many(userCustomFoods),
   snapshots: many(foodNutritionSnapshots),
   logEntries: many(foodLogEntries),
   recipeIngredients: many(recipeIngredients),
 }))
+
+export const userCustomFoodRelations = relations(
+  userCustomFoods,
+  ({ one }) => ({
+    user: one(user, {
+      fields: [userCustomFoods.userId],
+      references: [user.id],
+    }),
+    food: one(foods, {
+      fields: [userCustomFoods.foodId],
+      references: [foods.id],
+    }),
+  })
+)
 
 export const foodNutritionSnapshotRelations = relations(
   foodNutritionSnapshots,
@@ -983,6 +1022,7 @@ export const schema = {
   nutritionPlans,
   nutrientTargets,
   foods,
+  userCustomFoods,
   foodNutritionSnapshots,
   foodNutrientValues,
   recipes,
@@ -1005,6 +1045,7 @@ export const schema = {
   nutritionPlanRelations,
   nutrientTargetRelations,
   foodRelations,
+  userCustomFoodRelations,
   foodNutritionSnapshotRelations,
   foodNutrientValueRelations,
   recipeRelations,

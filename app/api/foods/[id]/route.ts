@@ -4,6 +4,7 @@ import { z } from "zod"
 import { getRequiredSession } from "@/lib/api/session"
 import {
   ensureExternalFoodSnapshot,
+  getCustomFoodSnapshot,
   toFoodSearchItem,
 } from "@/lib/foods/service"
 import { toNutritionSourceErrorResponse } from "../_lib/source-error-response"
@@ -27,6 +28,22 @@ export async function GET(
   }
 
   try {
+    const customFood = await getCustomFoodSnapshot(
+      session.user.id,
+      parsed.data.id
+    )
+
+    if (customFood) {
+      return NextResponse.json({
+        item: customFood.item,
+        nutrition: customFood.nutrition,
+        localFoodId: customFood.foodId,
+        snapshotId: customFood.snapshotId,
+        createdSnapshot: false,
+        fetchedAt: new Date().toISOString(),
+      })
+    }
+
     const result = await ensureExternalFoodSnapshot(parsed.data.id)
 
     return NextResponse.json({
