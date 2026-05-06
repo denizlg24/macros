@@ -43,6 +43,7 @@ import {
   FoodDetailDrawer,
   type FoodSummary,
 } from "../../add/_components/food-detail-drawer"
+import { CreateFoodDrawer } from "./create-food-drawer"
 
 const barcodeLookupResponseSchema = z.object({
   item: foodSearchItemSchema,
@@ -259,6 +260,7 @@ function ScanLogic({
   const [message, setMessage] = useState<string | null>(null)
   const [detectedBarcode, setDetectedBarcode] = useState<string | null>(null)
   const [selectedFood, setSelectedFood] = useState<FoodSummary | null>(null)
+  const [createFoodOpen, setCreateFoodOpen] = useState(false)
   const [isLogging, setIsLogging] = useState(false)
   const [extraConsumed, setExtraConsumed] = useState(0)
   const [selectedDate, setSelectedDate] = useState(() =>
@@ -319,6 +321,12 @@ function ScanLogic({
       setMessage(
         error instanceof Error ? error.message : "Could not find that barcode."
       )
+      if (
+        error instanceof Error &&
+        error.message === "No food found for this barcode."
+      ) {
+        setCreateFoodOpen(true)
+      }
       lastLookupRef.current = null
     } finally {
       lookupInFlightRef.current = false
@@ -552,6 +560,20 @@ function ScanLogic({
           handleRetry()
         }}
         onLog={handleLog}
+      />
+
+      <CreateFoodDrawer
+        open={createFoodOpen}
+        barcode={detectedBarcode}
+        onClose={() => {
+          setCreateFoodOpen(false)
+          handleRetry()
+        }}
+        onCreated={(food) => {
+          setCreateFoodOpen(false)
+          setSelectedFood(food)
+          setScanState("found")
+        }}
       />
     </div>
   )

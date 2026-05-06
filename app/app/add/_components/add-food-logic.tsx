@@ -318,6 +318,7 @@ type SearchableItem = Pick<
   | "proteinPerServing"
   | "carbsPerServing"
   | "fatPerServing"
+  | "isUserFood"
 >
 
 function fmtMacro(value: number | null) {
@@ -1404,20 +1405,41 @@ export function AddFoodLogic({
     [fromHistory]
   )
 
+  const yourFoods = useMemo(
+    () =>
+      logic.results.filter(
+        (item) => item.isUserFood && !historyIds.has(item.id)
+      ),
+    [logic.results, historyIds]
+  )
+
+  const yourFoodIds = useMemo(
+    () => new Set(yourFoods.map((item) => item.id)),
+    [yourFoods]
+  )
+
   const common = useMemo(
     () =>
       logic.results.filter(
-        (item) => item.brand === null && !historyIds.has(item.id)
+        (item) =>
+          item.brand === null &&
+          !item.isUserFood &&
+          !historyIds.has(item.id) &&
+          !yourFoodIds.has(item.id)
       ),
-    [logic.results, historyIds]
+    [logic.results, historyIds, yourFoodIds]
   )
 
   const branded = useMemo(
     () =>
       logic.results.filter(
-        (item) => item.brand !== null && !historyIds.has(item.id)
+        (item) =>
+          item.brand !== null &&
+          !item.isUserFood &&
+          !historyIds.has(item.id) &&
+          !yourFoodIds.has(item.id)
       ),
-    [logic.results, historyIds]
+    [logic.results, historyIds, yourFoodIds]
   )
 
   const picks = logic.timePicks.slice(0, 5)
@@ -1465,6 +1487,14 @@ export function AddFoodLogic({
               onQuickAdd={quickAddToPending}
             />
             <Section
+              title="Your Foods"
+              items={yourFoods}
+              query={trimmed}
+              highlightOnly
+              onSelect={setSelectedFood}
+              onQuickAdd={quickAddToPending}
+            />
+            <Section
               title="Common"
               items={common}
               query={trimmed}
@@ -1483,6 +1513,7 @@ export function AddFoodLogic({
             {logic.isSearching ? <SearchLoadingSkeleton /> : null}
             {!logic.isSearching &&
             fromHistory.length === 0 &&
+            yourFoods.length === 0 &&
             common.length === 0 &&
             branded.length === 0 ? (
               <p className="px-4 py-8 text-center text-sm text-muted-foreground">

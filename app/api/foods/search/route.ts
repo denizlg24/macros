@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 
 import { getRequiredSession } from "@/lib/api/session"
 import { foodSearchParamsSchema } from "@/lib/foods/contracts"
-import { toFoodSearchItem } from "@/lib/foods/service"
+import { searchUserCustomFoods, toFoodSearchItem } from "@/lib/foods/service"
 import { searchNutritionFoods } from "@/lib/foods/source"
 import { toNutritionSourceErrorResponse } from "../_lib/source-error-response"
 
@@ -30,10 +30,24 @@ export async function GET(request: Request) {
   }
 
   try {
-    const sourceItems = await searchNutritionFoods(parsed.data)
+    const [userItems, sourceItems] = await Promise.all([
+      searchUserCustomFoods(
+        session.user.id,
+        parsed.data.q,
+        parsed.data.brand,
+        parsed.data.limit
+      ),
+      searchNutritionFoods(parsed.data),
+    ])
+    const userItemIds = new Set(userItems.map((item) => item.id))
 
     return NextResponse.json({
-      items: sourceItems.map(toFoodSearchItem),
+      items: [
+        ...userItems,
+        ...sourceItems
+          .map(toFoodSearchItem)
+          .filter((item) => !userItemIds.has(item.id)),
+      ].slice(0, parsed.data.limit),
       fetchedAt: new Date().toISOString(),
     })
   } catch (error) {

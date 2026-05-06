@@ -9,9 +9,10 @@ import {
 } from "@/lib/foods/contracts"
 
 const dbName = "macros-food-search"
-const dbVersion = 1
+const dbVersion = 2
 const queryStore = "queries"
 const itemStore = "items"
+const userCreatedFoodStore = "userCreatedFoods"
 const maxCachedQueryAgeMs = 1000 * 60 * 60 * 24 * 14
 
 const cachedSearchEntrySchema = z.object({
@@ -35,6 +36,7 @@ const cachedFoodItemSchema = z.object({
 
 type CachedSearchEntry = z.infer<typeof cachedSearchEntrySchema>
 type CachedFoodItem = z.infer<typeof cachedFoodItemSchema>
+type CachedUserCreatedFood = CachedFoodItem
 
 function openFoodCache() {
   return new Promise<IDBDatabase>((resolve, reject) => {
@@ -49,6 +51,10 @@ function openFoodCache() {
 
       if (!database.objectStoreNames.contains(itemStore)) {
         database.createObjectStore(itemStore, { keyPath: "item.id" })
+      }
+
+      if (!database.objectStoreNames.contains(userCreatedFoodStore)) {
+        database.createObjectStore(userCreatedFoodStore, { keyPath: "item.id" })
       }
     }
 
@@ -94,7 +100,7 @@ function readStoreValues(storeName: string, keys: string[]) {
 function writeValues(
   writes: Array<{
     storeName: string
-    value: CachedSearchEntry | CachedFoodItem
+    value: CachedSearchEntry | CachedFoodItem | CachedUserCreatedFood
   }>
 ) {
   return new Promise<void>((resolve, reject) => {
@@ -204,4 +210,58 @@ export async function updateCachedFoodItems(
       value: { item, fetchedAt },
     }))
   )
+}
+
+export async function putUserCreatedFood(
+  item: FoodSearchItem,
+  fetchedAt: string
+) {
+  if (typeof indexedDB === "undefined") {
+    return
+  }
+
+  await writeValues([
+    {
+      storeName: userCreatedFoodStore,
+      value: { item, fetchedAt },
+    },
+    {
+      storeName: itemStore,
+      value: { item, fetchedAt },
+    },
+  ])
+}
+
+export function getUserCreatedFoods() {
+  return new Promise<FoodSearchItem[]>((resolve, reject) => {
+    if (typeof indexedDB === "undefined") {
+      resolve([])
+      return
+    }
+
+    openFoodCache()
+      .then((database) => {
+        const transaction = database.transaction(
+          userCreatedFoodStore,
+          "readonly"
+        )
+        const request = transaction.objectStore(userCreatedFoodStore).getAll()
+
+        request.onerror = () => reject(request.error)
+        request.onsuccess = () => {
+          const items = request.result
+            .map((value: unknown) => cachedFoodItemSchema.safeParse(value))
+            .filter((result) => result.success)
+            .map((result) => result.data.item)
+          resolve(items)
+        }
+
+        transaction.oncomplete = () => database.close()
+        transaction.onerror = () => {
+          database.close()
+          reject(transaction.error)
+        }
+      })
+      .catch(reject)
+  })
 }
