@@ -937,7 +937,7 @@ function dedupeById<T extends { id: string }>(items: T[]) {
   return out
 }
 
-type PendingFood = {
+export type PendingFood = {
   uid: string
   food: FoodSummary
   input: LogFoodInput
@@ -966,7 +966,7 @@ const failedPendingFoodSchema = z.object({
   }),
 })
 
-function getPendingCalories(food: PendingFood) {
+export function getPendingCalories(food: PendingFood) {
   return food.macros.calories
 }
 
@@ -996,7 +996,7 @@ function takeFailedPendingFoods(): PendingFood[] {
   return foods
 }
 
-function saveFailedPendingFoods(foods: PendingFood[]) {
+export function saveFailedPendingFoods(foods: PendingFood[]) {
   if (foods.length === 0) return
 
   try {
@@ -1025,7 +1025,7 @@ function foodInitials(name: string): string {
   return (words[0]![0]! + words[1]![0]!).toUpperCase()
 }
 
-function PendingFoodsSheet({
+export function PendingFoodsSheet({
   open,
   onClose,
   pendingFoods,

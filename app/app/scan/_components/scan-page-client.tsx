@@ -28,16 +28,25 @@ import {
   type LogFoodInput,
   logFoodResponseSchema,
 } from "@/lib/foods/contracts"
-import type { OptimisticDailyMacros } from "@/lib/optimistic-nutrition"
+import {
+  addOptimisticNutritionEntry,
+  type OptimisticDailyMacros,
+  putConfirmedNutritionTotals,
+  removeOptimisticNutritionEntries,
+} from "@/lib/optimistic-nutrition"
 import type { DailyCalorieSummary } from "@/lib/queries/calorie-summary"
 import { cn } from "@/lib/utils"
 import {
   dateFromIsoDate,
   formatHourLabel,
   getHourInTimezone,
+  getPendingCalories,
   HeaderChips,
   inferMealType,
   NavTabs,
+  type PendingFood,
+  PendingFoodsSheet,
+  saveFailedPendingFoods,
 } from "../../add/_components/add-food-logic"
 import {
   FoodDetailDrawer,
@@ -289,8 +298,12 @@ function ScanLogic({
   const [detectedBarcode, setDetectedBarcode] = useState<string | null>(null)
   const [selectedFood, setSelectedFood] = useState<FoodSummary | null>(null)
   const [createFoodOpen, setCreateFoodOpen] = useState(false)
-  const [isLogging, setIsLogging] = useState(false)
+  const [pendingFoods, setPendingFoods] = useState<PendingFood[]>([])
+  const [pendingSheetOpen, setPendingSheetOpen] = useState(false)
   const [extraConsumed, setExtraConsumed] = useState(0)
+  const [isCommitting, setIsCommitting] = useState(false)
+  const commitInFlightRef = useRef(false)
+  const mountedRef = useRef(false)
   const [selectedDate, setSelectedDate] = useState(() =>
     dateFromIsoDate(calorieSummary.today)
   )
@@ -365,8 +378,10 @@ function ScanLogic({
 
   useEffect(() => {
     document.documentElement.classList.add("macros-add-food-scroll-lock")
+    mountedRef.current = true
 
     return () => {
+      mountedRef.current = false
       document.documentElement.classList.remove("macros-add-food-scroll-lock")
     }
   }, [])
@@ -515,19 +530,103 @@ function ScanLogic({
     setScanKey((key) => key + 1)
   }, [])
 
-  const handleLog = useCallback(
-    async (input: LogFoodInput, macros: OptimisticDailyMacros) => {
-      setIsLogging(true)
-      try {
-        const result = await postFoodLog(input)
+  const pendingCalories = useMemo(
+    () =>
+      pendingFoods
+        .filter((food) => food.input.logDate === calorieSummary.today)
+        .reduce((sum, food) => sum + getPendingCalories(food), 0),
+    [pendingFoods, calorieSummary.today]
+  )
+
+  const addToPending = useCallback(
+    (input: LogFoodInput, macros: OptimisticDailyMacros) => {
+      if (!selectedFood) return Promise.resolve()
+      const clientMutationId = crypto.randomUUID()
+      setPendingFoods((prev) => [
+        ...prev,
+        {
+          uid: clientMutationId,
+          food: selectedFood,
+          input: { ...input, clientMutationId },
+          macros,
+        },
+      ])
+      return Promise.resolve()
+    },
+    [selectedFood]
+  )
+
+  const removePending = useCallback((uid: string) => {
+    setPendingFoods((prev) => prev.filter((food) => food.uid !== uid))
+  }, [])
+
+  const logAllPending = useCallback(async () => {
+    if (pendingFoods.length === 0 || commitInFlightRef.current) return
+
+    commitInFlightRef.current = true
+    setIsCommitting(true)
+
+    try {
+      const foodsToLog = pendingFoods
+      const optimisticToday = foodsToLog
+        .filter((food) => food.input.logDate === calorieSummary.today)
+        .reduce((sum, food) => sum + getPendingCalories(food), 0)
+
+      setPendingFoods([])
+      setPendingSheetOpen(false)
+      setExtraConsumed((current) => current + optimisticToday)
+
+      for (const food of foodsToLog) {
+        if (food.input.logDate !== calorieSummary.today) continue
+
+        addOptimisticNutritionEntry({
+          id: food.uid,
+          logDate: calorieSummary.today,
+          macros: food.macros,
+        })
+      }
+
+      router.push("/app")
+
+      const failedFoods: PendingFood[] = []
+      let succeededCount = 0
+
+      for (const food of foodsToLog) {
+        const result = await postFoodLog(food.input).catch(() => null)
+
+        if (!result) {
+          failedFoods.push(food)
+          continue
+        }
+
+        succeededCount += 1
+        removeOptimisticNutritionEntries([
+          result.entry.clientMutationId ?? food.uid,
+        ])
+
         if (result.entry.logDate === calorieSummary.today) {
-          setExtraConsumed((current) => current + macros.calories)
+          putConfirmedNutritionTotals(result.entry.logDate, result.totals)
           setTodayNutritionTotals(
             queryClient,
             result.entry.logDate,
             result.totals
           )
         }
+      }
+
+      removeOptimisticNutritionEntries(failedFoods.map((food) => food.uid))
+
+      if (failedFoods.length > 0) {
+        saveFailedPendingFoods(failedFoods)
+        toast.error("Some foods were not logged", {
+          action: {
+            label: "Retry",
+            onClick: () => router.push("/app/add?retry=failed"),
+          },
+        })
+      }
+
+      if (succeededCount > 0) {
         void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard })
         void queryClient.invalidateQueries({
           queryKey: queryKeys.calorieSummary,
@@ -535,16 +634,21 @@ function ScanLogic({
         void queryClient.invalidateQueries({
           queryKey: queryKeys.foodHistory(20),
         })
-        router.push("/app")
-      } catch (error) {
-        toast.error(
-          error instanceof Error ? error.message : "Could not log this food."
-        )
-      } finally {
-        setIsLogging(false)
       }
+    } finally {
+      commitInFlightRef.current = false
+      if (mountedRef.current) {
+        setIsCommitting(false)
+      }
+    }
+  }, [pendingFoods, calorieSummary.today, queryClient, router])
+
+  const handleStage = useCallback(
+    async (input: LogFoodInput, macros: OptimisticDailyMacros) => {
+      await addToPending(input, macros)
+      setPendingSheetOpen(true)
     },
-    [calorieSummary.today, queryClient, router]
+    [addToPending]
   )
 
   return (
@@ -563,9 +667,9 @@ function ScanLogic({
             ...calorieSummary,
             consumed: calorieSummary.consumed + extraConsumed,
           }}
-          pendingCount={0}
-          pendingCalories={0}
-          onViewPending={() => {}}
+          pendingCount={pendingFoods.length}
+          pendingCalories={pendingCalories}
+          onViewPending={() => setPendingSheetOpen(true)}
         />
         <NavTabs />
       </div>
@@ -585,12 +689,12 @@ function ScanLogic({
         eatenAt={eatenAt}
         logDate={logDate}
         mealType={inferMealType(selectedHour)}
-        isLogging={isLogging}
+        isLogging={false}
         onClose={() => {
           setSelectedFood(null)
           handleRetry()
         }}
-        onLog={handleLog}
+        onLog={handleStage}
       />
 
       <CreateFoodDrawer
@@ -605,6 +709,15 @@ function ScanLogic({
           setSelectedFood(food)
           setScanState("found")
         }}
+      />
+
+      <PendingFoodsSheet
+        open={pendingSheetOpen}
+        onClose={() => setPendingSheetOpen(false)}
+        pendingFoods={pendingFoods}
+        onRemove={removePending}
+        onCommit={logAllPending}
+        isLogging={isCommitting}
       />
     </div>
   )
