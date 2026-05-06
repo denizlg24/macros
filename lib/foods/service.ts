@@ -459,6 +459,53 @@ export async function getCustomFoodSnapshot(userId: string, foodId: string) {
   }
 }
 
+export async function getCustomFoodSnapshotByBarcode(
+  userId: string,
+  barcode: string
+) {
+  const customFoods = await db
+    .select({
+      id: foods.id,
+      barcode: foods.barcode,
+      name: foods.name,
+      brand: foods.brand,
+    })
+    .from(userCustomFoods)
+    .innerJoin(foods, eq(foods.id, userCustomFoods.foodId))
+    .where(
+      and(
+        eq(userCustomFoods.userId, userId),
+        isNull(userCustomFoods.deletedAt),
+        eq(foods.source, "custom"),
+        eq(foods.barcode, barcode)
+      )
+    )
+    .orderBy(desc(userCustomFoods.createdAt))
+    .limit(20)
+
+  for (const food of customFoods) {
+    const snapshot = await getLatestSnapshot(food.id)
+    const parsed = externalFoodNutritionSchema.safeParse(snapshot?.rawNutrition)
+
+    if (
+      !snapshot ||
+      !parsed.success ||
+      Object.keys(parsed.data.nutrients).length === 0
+    ) {
+      continue
+    }
+
+    return {
+      foodId: food.id,
+      snapshotId: snapshot.id,
+      item: toCustomFoodSearchItem(food, parsed.data),
+      nutrition: parsed.data,
+    }
+  }
+
+  return null
+}
+
 export async function getUserCustomFoods(
   userId: string
 ): Promise<FoodSearchItem[]> {

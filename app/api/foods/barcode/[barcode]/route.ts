@@ -4,6 +4,7 @@ import { z } from "zod"
 import { getRequiredSession } from "@/lib/api/session"
 import {
   ensureExternalFoodSnapshot,
+  getCustomFoodSnapshotByBarcode,
   toFoodSearchItem,
 } from "@/lib/foods/service"
 import { getNutritionFoodByBarcode } from "@/lib/foods/source"
@@ -25,6 +26,22 @@ export async function GET(
 
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid barcode" }, { status: 400 })
+  }
+
+  const customFood = await getCustomFoodSnapshotByBarcode(
+    session.user.id,
+    parsed.data.barcode
+  )
+
+  if (customFood) {
+    return NextResponse.json({
+      item: customFood.item,
+      nutrition: customFood.nutrition,
+      localFoodId: customFood.foodId,
+      snapshotId: customFood.snapshotId,
+      createdSnapshot: false,
+      fetchedAt: new Date().toISOString(),
+    })
   }
 
   try {
