@@ -4,6 +4,25 @@ import { isNutrientKey } from "@/lib/foods/nutrients"
 
 const numericValueSchema = z.union([z.number(), z.string()]).transform(Number)
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
+function collectNutrients(record: Record<string, unknown>) {
+  const nutrients: Record<string, number> = {}
+
+  for (const [key, value] of Object.entries(record)) {
+    if (
+      isNutrientKey(key) &&
+      (typeof value === "number" || typeof value === "string")
+    ) {
+      nutrients[key] = Number(value)
+    }
+  }
+
+  return nutrients
+}
+
 export const foodSearchParamsSchema = z.object({
   q: z.string().trim().min(1).optional(),
   brand: z.string().trim().min(1).optional(),
@@ -32,28 +51,34 @@ const passthroughNutritionSchema = z
   .object({
     itemId: z.uuid(),
     servingLabel: z.string().min(1),
-    servingQnty: numericValueSchema,
+    servingQnty: numericValueSchema.optional(),
     servingQuantity: numericValueSchema.optional(),
     servingUnit: z.string().min(1),
     createdAt: z.string().optional(),
     updatedAt: z.string().optional(),
   })
   .passthrough()
-  .transform((nutrition) => {
-    const nutrients: Record<string, number> = {}
+  .transform((nutrition, ctx) => {
+    const servingQuantity = nutrition.servingQuantity ?? nutrition.servingQnty
 
-    for (const [key, value] of Object.entries(nutrition)) {
-      if (
-        isNutrientKey(key) &&
-        (typeof value === "number" || typeof value === "string")
-      ) {
-        nutrients[key] = Number(value)
-      }
+    if (servingQuantity === undefined) {
+      ctx.addIssue({
+        code: "custom",
+        message: "servingQuantity is required",
+      })
+      return z.NEVER
+    }
+
+    const nutrients = collectNutrients(nutrition)
+    const nestedNutrients = nutrition.nutrients
+
+    if (isRecord(nestedNutrients)) {
+      Object.assign(nutrients, collectNutrients(nestedNutrients))
     }
 
     return {
       ...nutrition,
-      servingQuantity: nutrition.servingQuantity ?? nutrition.servingQnty,
+      servingQuantity,
       nutrients,
     }
   })

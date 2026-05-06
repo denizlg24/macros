@@ -330,21 +330,22 @@ export function USLabel({
       </div>
       <div className="border-b-8 border-foreground py-1">
         <div className="flex items-end justify-between">
-          <div className="text-sm font-bold">Calories</div>
+          <div className="flex items-center gap-2 text-sm font-bold">
+            <span>Calories</span>
+            <NumericInput
+              nutrientKey="calories"
+              drafts={drafts}
+              setDraft={setDraft}
+              unitPref={unitPref}
+              scaleFactor={scaleFactor}
+              className="h-7 w-20 rounded border border-input bg-background px-2 text-right text-xs font-normal tabular-nums focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              ariaLabel="Calories value"
+            />
+            <span className="text-xs font-normal">kcal</span>
+          </div>
           <div className="text-3xl font-black tabular-nums">
             {Math.round(calories)}
           </div>
-        </div>
-        <div className="-mt-1 flex justify-end">
-          <NumericInput
-            nutrientKey="calories"
-            drafts={drafts}
-            setDraft={setDraft}
-            unitPref={unitPref}
-            scaleFactor={scaleFactor}
-            className="h-7 w-20 rounded border border-input bg-background px-2 text-right text-xs tabular-nums focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            ariaLabel="Calories value"
-          />
         </div>
       </div>
 
@@ -457,11 +458,22 @@ export function EULabel({
       <div className="divide-y divide-border px-3">
         <div className="flex items-center justify-between py-2">
           <span className="text-sm font-medium">Energy</span>
-          <div className="text-right tabular-nums">
-            <div className="text-sm">{Math.round(energyKj)} kJ</div>
-            <div className="text-xs text-muted-foreground">
-              {Math.round(energyKcal)} kcal
+          <div className="flex items-center gap-2">
+            <div className="text-right tabular-nums">
+              <div className="text-sm">{Math.round(energyKj)} kJ</div>
+              <div className="text-xs text-muted-foreground">
+                {Math.round(energyKcal)} kcal
+              </div>
             </div>
+            <NumericInput
+              nutrientKey="calories"
+              drafts={drafts}
+              setDraft={setDraft}
+              unitPref={unitPref}
+              scaleFactor={fixedScale}
+              ariaLabel="Energy calories value"
+            />
+            <span className="w-8 text-xs text-muted-foreground">kcal</span>
           </div>
         </div>
         {row("fat", "Fat")}
@@ -498,6 +510,37 @@ export function DetailLabel({
 }: NutrientLabelProps) {
   return (
     <div className="space-y-5">
+      <section>
+        <h3 className="mb-2 text-sm font-semibold">Energy</h3>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="space-y-1">
+            <div className="flex items-center justify-between gap-2">
+              <label
+                htmlFor="detail-calories"
+                className="text-xs text-muted-foreground"
+              >
+                Calories
+              </label>
+              <span className="text-xs text-muted-foreground">kcal</span>
+            </div>
+            <Input
+              id="detail-calories"
+              inputMode="decimal"
+              value={getDisplayValue("calories", drafts, unitPref, scaleFactor)}
+              onChange={(event) =>
+                commitInput(
+                  "calories",
+                  event.target.value,
+                  unitPref,
+                  scaleFactor,
+                  setDraft
+                )
+              }
+              className="h-11 text-base tabular-nums"
+            />
+          </div>
+        </div>
+      </section>
       {NUTRIENT_SECTIONS.map((section) => (
         <section key={section.title}>
           <h3 className="mb-2 text-sm font-semibold">{section.title}</h3>
