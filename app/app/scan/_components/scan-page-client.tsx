@@ -47,7 +47,7 @@ import {
   type PendingFood,
   PendingFoodsSheet,
   saveFailedPendingFoods,
-} from "../../add/_components/add-food-logic"
+} from "../../add/_components/add-food-shared"
 import {
   FoodDetailDrawer,
   type FoodSummary,

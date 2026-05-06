@@ -190,6 +190,30 @@ async function getLatestSnapshot(foodId: string) {
   })
 }
 
+async function getLatestSnapshotsByFoodId(foodIds: string[]) {
+  if (foodIds.length === 0) return new Map<string, ExternalFoodNutrition>()
+
+  const rows = await db
+    .select({
+      foodId: foodNutritionSnapshots.foodId,
+      rawNutrition: foodNutritionSnapshots.rawNutrition,
+    })
+    .from(foodNutritionSnapshots)
+    .where(inArray(foodNutritionSnapshots.foodId, foodIds))
+    .orderBy(desc(foodNutritionSnapshots.fetchedAt))
+
+  const snapshots = new Map<string, ExternalFoodNutrition>()
+  for (const row of rows) {
+    if (snapshots.has(row.foodId)) continue
+    const parsed = externalFoodNutritionSchema.safeParse(row.rawNutrition)
+    if (parsed.success) {
+      snapshots.set(row.foodId, parsed.data)
+    }
+  }
+
+  return snapshots
+}
+
 function nutrientsHaveDrifted(
   latest: Awaited<ReturnType<typeof getLatestSnapshot>>,
   nutrition: ExternalFoodNutrition
@@ -267,6 +291,35 @@ async function createFoodSnapshot(
   return snapshot.id
 }
 
+function isReference100gServing(
+  serving: CreateFoodInput["servingSizes"][number]
+) {
+  return (
+    serving.label.trim().toLowerCase() === "100g" &&
+    serving.unit.trim().toLowerCase() === "g" &&
+    Math.abs(serving.quantity - 100) < snapshotDriftTolerance
+  )
+}
+
+function getPrimaryServing(input: CreateFoodInput) {
+  return (
+    input.servingSizes.find((serving) => !isReference100gServing(serving)) ??
+    input.servingSizes[0]
+  )
+}
+
+function scaleNutrientsForServing(
+  nutrients: CreateFoodInput["nutrients"],
+  serving: CreateFoodInput["servingSizes"][number]
+) {
+  const scale =
+    serving.unit.trim().toLowerCase() === "g" ? serving.quantity / 100 : 1
+
+  return Object.fromEntries(
+    Object.entries(nutrients).map(([key, amount]) => [key, amount * scale])
+  )
+}
+
 export async function ensureExternalFoodSnapshot(
   sourceItemId: string,
   preSummary?: ExternalFoodSummary
@@ -299,7 +352,11 @@ export async function ensureExternalFoodSnapshot(
 
 export async function createCustomFood(userId: string, input: CreateFoodInput) {
   const nowIso = new Date().toISOString()
-  const primaryServing = input.servingSizes[0]
+  const primaryServing = getPrimaryServing(input)
+  const nutrientsPerPrimaryServing = scaleNutrientsForServing(
+    input.nutrients,
+    primaryServing
+  )
 
   return db.transaction(async (tx) => {
     const [food] = await tx
@@ -329,7 +386,7 @@ export async function createCustomFood(userId: string, input: CreateFoodInput) {
       servingQnty: primaryServing.quantity,
       servingQuantity: primaryServing.quantity,
       servingUnit: primaryServing.unit,
-      nutrients: input.nutrients,
+      nutrients: nutrientsPerPrimaryServing,
       servingSizes: input.servingSizes,
       createdAt: nowIso,
       updatedAt: nowIso,
@@ -424,11 +481,13 @@ export async function getUserCustomFoods(
   })
 
   const items: FoodSearchItem[] = []
+  const snapshots = await getLatestSnapshotsByFoodId(
+    rows.map((row) => row.food.id)
+  )
   for (const row of rows) {
-    const snapshot = await getLatestSnapshot(row.food.id)
-    const parsed = externalFoodNutritionSchema.safeParse(snapshot?.rawNutrition)
-    if (parsed.success) {
-      items.push(toCustomFoodSearchItem(row.food, parsed.data))
+    const nutrition = snapshots.get(row.food.id)
+    if (nutrition) {
+      items.push(toCustomFoodSearchItem(row.food, nutrition))
     }
   }
 
@@ -469,11 +528,11 @@ export async function searchUserCustomFoods(
     .limit(limit)
 
   const items: FoodSearchItem[] = []
+  const snapshots = await getLatestSnapshotsByFoodId(rows.map((row) => row.id))
   for (const row of rows) {
-    const snapshot = await getLatestSnapshot(row.id)
-    const parsed = externalFoodNutritionSchema.safeParse(snapshot?.rawNutrition)
-    if (parsed.success) {
-      items.push(toCustomFoodSearchItem(row, parsed.data))
+    const nutrition = snapshots.get(row.id)
+    if (nutrition) {
+      items.push(toCustomFoodSearchItem(row, nutrition))
     }
   }
 
