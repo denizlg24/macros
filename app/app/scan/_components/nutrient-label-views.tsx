@@ -1,7 +1,7 @@
 "use client"
 
 import { Repeat } from "lucide-react"
-import { useState } from "react"
+import { type ReactNode, useEffect, useRef, useState } from "react"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -22,6 +22,114 @@ import {
   type UnitPref,
 } from "@/lib/foods/unit-conversions"
 import { NUTRIENT_SECTIONS, WHO_DAILY_VALUES } from "@/lib/foods/who-guidelines"
+
+const NUTRIENT_ALIASES: Partial<Record<NutrientKey, string>> = {
+  a: "Retinol",
+  b1: "Thiamin",
+  b2: "Riboflavin",
+  b3: "Niacin",
+  b5: "Pantothenic acid",
+  b6: "Pyridoxine",
+  b12: "Cobalamin",
+  c: "Ascorbic acid",
+  d: "Cholecalciferol",
+  e: "Tocopherol",
+  k: "Phylloquinone",
+  folate: "Folic acid",
+}
+
+function NutrientLabelText({
+  label,
+  nutrientKey,
+}: {
+  label: string
+  nutrientKey: NutrientKey
+}) {
+  const alias = NUTRIENT_ALIASES[nutrientKey]
+  return (
+    <>
+      {label}
+      {alias ? (
+        <span className="ml-1 text-muted-foreground">({alias})</span>
+      ) : null}
+    </>
+  )
+}
+
+const PARTIAL_NUMERIC_RE = /^\d*\.?\d*$/
+
+function DraftNumberInput({
+  value,
+  onCommit,
+  className,
+  ariaLabel,
+  renderInput,
+}: {
+  value: string
+  onCommit: (raw: string) => void
+  className?: string
+  ariaLabel?: string
+  renderInput?: (props: {
+    value: string
+    onChange: (event: React.ChangeEvent<HTMLInputElement>) => void
+    onFocus: () => void
+    onBlur: () => void
+    inputMode: "decimal"
+    type: "text"
+    "aria-label"?: string
+  }) => ReactNode
+}) {
+  const [local, setLocal] = useState(value)
+  const focusedRef = useRef(false)
+
+  useEffect(() => {
+    if (!focusedRef.current) setLocal(value)
+  }, [value])
+
+  const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const normalized = event.target.value.replace(/,/g, ".")
+    if (normalized !== "" && !PARTIAL_NUMERIC_RE.test(normalized)) return
+    setLocal(normalized)
+    onCommit(normalized)
+  }
+
+  const handleFocus = () => {
+    focusedRef.current = true
+  }
+
+  const handleBlur = () => {
+    focusedRef.current = false
+    setLocal(value)
+  }
+
+  if (renderInput) {
+    return renderInput({
+      value: local,
+      onChange: handleChange,
+      onFocus: handleFocus,
+      onBlur: handleBlur,
+      inputMode: "decimal",
+      type: "text",
+      "aria-label": ariaLabel,
+    })
+  }
+
+  return (
+    <input
+      type="text"
+      inputMode="decimal"
+      aria-label={ariaLabel}
+      value={local}
+      onFocus={handleFocus}
+      onBlur={handleBlur}
+      onChange={handleChange}
+      className={
+        className ??
+        "h-8 w-16 rounded border border-input bg-background px-2 text-right text-sm tabular-nums focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+      }
+    />
+  )
+}
 
 export interface NutrientLabelProps {
   drafts: Record<string, string>
@@ -134,19 +242,13 @@ function NumericInput({
     scaleFactor
   )
   return (
-    <input
-      type="text"
-      inputMode="decimal"
-      aria-label={ariaLabel}
+    <DraftNumberInput
       value={displayValue}
-      onChange={(event) => {
-        const raw = event.target.value
+      onCommit={(raw) =>
         commitInput(nutrientKey, raw, unitPref, scaleFactor, setDraft)
-      }}
-      className={
-        className ??
-        "h-8 w-16 rounded border border-input bg-background px-2 text-right text-sm tabular-nums focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
       }
+      className={className}
+      ariaLabel={ariaLabel}
     />
   )
 }
@@ -172,13 +274,13 @@ function AdditionalMicronutrients({
 
   return (
     <section className="mt-3 border-t border-border pt-3">
-      <h3 className="text-sm font-semibold">
+      <h3 className="border-b border-border pb-1 text-sm font-semibold text-foreground">
         Additional vitamins and minerals
       </h3>
       <div className="mt-3 space-y-4">
         {sections.map((section) => (
           <div key={section.title}>
-            <p className="mb-2 text-xs font-medium text-muted-foreground">
+            <p className="mb-2 border-b border-border pb-1 text-sm font-semibold text-foreground">
               {section.title}
             </p>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -190,9 +292,14 @@ function AdditionalMicronutrients({
                 const isToggleable = isToggleableNutrient(key)
                 return (
                   <div key={key} className="grid grid-cols-[1fr_auto] gap-2">
-                    <span className="min-w-0 text-xs text-muted-foreground">
-                      <span className="block truncate">{def.label}</span>
-                      <span className="inline-flex items-center gap-1">
+                    <span className="min-w-0 text-xs text-foreground">
+                      <span className="block truncate">
+                        <NutrientLabelText
+                          label={def.label}
+                          nutrientKey={key}
+                        />
+                      </span>
+                      <span className="inline-flex items-center gap-1 text-muted-foreground">
                         {getInputUnit(key, unitPref)}
                         {isToggleable ? (
                           <button
@@ -297,7 +404,9 @@ export function USLabel({
         className="flex items-center justify-between border-b border-foreground/30 py-1"
       >
         <div className="flex items-center gap-1 text-sm">
-          <span>{label}</span>
+          <span>
+            <NutrientLabelText label={label} nutrientKey={key} />
+          </span>
           {isToggleable && (
             <button
               type="button"
@@ -479,12 +588,10 @@ export function EULabel({
         <div className="flex items-center justify-between py-2">
           <span className="text-sm font-medium">Energy</span>
           <div className="flex items-center gap-2">
-            <input
-              type="text"
-              inputMode="decimal"
-              aria-label="Energy value"
+            <DraftNumberInput
               value={energyDisplayValue}
-              onChange={(event) => commitEnergyInput(event.target.value)}
+              onCommit={(raw) => commitEnergyInput(raw)}
+              ariaLabel="Energy value"
               className="h-8 w-20 rounded border border-input bg-background px-2 text-right text-sm tabular-nums focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             />
             <button
@@ -535,7 +642,9 @@ export function DetailLabel({
   return (
     <div className="space-y-5">
       <section>
-        <h3 className="mb-2 text-sm font-semibold">Energy</h3>
+        <h3 className="mb-2 border-b border-border pb-1 text-sm font-semibold text-foreground">
+          Energy
+        </h3>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="space-y-1">
             <div className="flex items-center justify-between gap-2">
@@ -547,27 +656,28 @@ export function DetailLabel({
               </label>
               <span className="text-xs text-muted-foreground">kcal</span>
             </div>
-            <Input
-              id="detail-calories"
-              inputMode="decimal"
+            <DraftNumberInput
               value={getDisplayValue("calories", drafts, unitPref, scaleFactor)}
-              onChange={(event) =>
-                commitInput(
-                  "calories",
-                  event.target.value,
-                  unitPref,
-                  scaleFactor,
-                  setDraft
-                )
+              onCommit={(raw) =>
+                commitInput("calories", raw, unitPref, scaleFactor, setDraft)
               }
-              className="h-11 text-base tabular-nums"
+              ariaLabel="Calories value"
+              renderInput={(props) => (
+                <Input
+                  id="detail-calories"
+                  className="h-11 text-base tabular-nums"
+                  {...props}
+                />
+              )}
             />
           </div>
         </div>
       </section>
       {NUTRIENT_SECTIONS.map((section) => (
         <section key={section.title}>
-          <h3 className="mb-2 text-sm font-semibold">{section.title}</h3>
+          <h3 className="mb-2 border-b border-border pb-1 text-sm font-semibold text-foreground">
+            {section.title}
+          </h3>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {section.keys.map((key) => {
               const def = nutrientDefinitionsInput.find(
@@ -580,9 +690,9 @@ export function DetailLabel({
                   <div className="flex items-center justify-between gap-2">
                     <label
                       htmlFor={`detail-${key}`}
-                      className="text-xs text-muted-foreground"
+                      className="text-xs text-foreground"
                     >
-                      {def.label}
+                      <NutrientLabelText label={def.label} nutrientKey={key} />
                     </label>
                     {isToggleable ? (
                       <Select
@@ -613,20 +723,19 @@ export function DetailLabel({
                       </span>
                     )}
                   </div>
-                  <Input
-                    id={`detail-${key}`}
-                    inputMode="decimal"
+                  <DraftNumberInput
                     value={getDisplayValue(key, drafts, unitPref, scaleFactor)}
-                    onChange={(event) =>
-                      commitInput(
-                        key,
-                        event.target.value,
-                        unitPref,
-                        scaleFactor,
-                        setDraft
-                      )
+                    onCommit={(raw) =>
+                      commitInput(key, raw, unitPref, scaleFactor, setDraft)
                     }
-                    className="h-11 text-base tabular-nums"
+                    ariaLabel={`${def.label} value`}
+                    renderInput={(props) => (
+                      <Input
+                        id={`detail-${key}`}
+                        className="h-11 text-base tabular-nums"
+                        {...props}
+                      />
+                    )}
                   />
                 </div>
               )
