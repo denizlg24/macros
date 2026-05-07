@@ -1267,7 +1267,11 @@ export function AddFoodLogic({
   const [selectedDate, setSelectedDate] = useState(() => {
     const fromUrl = searchParams.get("date")
     if (fromUrl && /^\d{4}-\d{2}-\d{2}$/.test(fromUrl)) {
-      return dateFromIsoDate(fromUrl)
+      const parsed = new Date(fromUrl)
+      const formatted = parsed.toISOString().slice(0, 10)
+      if (formatted === fromUrl) {
+        return dateFromIsoDate(fromUrl)
+      }
     }
     return dateFromIsoDate(calorieSummary.today)
   })

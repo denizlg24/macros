@@ -153,7 +153,13 @@ export async function getNutritionOverview(
     targetByKey.set(t.nutrientKey, Number(t.targetValue))
   }
 
-  const dayCount = Math.max(1, summaryRows.length)
+  const startDate = new Date(start)
+  const endDate = new Date(end)
+  const dayCount = Math.max(
+    1,
+    Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) +
+      1
+  )
   const isAggregate = range !== "yesterday"
 
   const macroTargets = {

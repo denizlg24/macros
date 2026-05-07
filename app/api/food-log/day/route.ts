@@ -3,6 +3,9 @@ import { z } from "zod"
 
 import { getRequiredSession } from "@/lib/api/session"
 import { getFoodLogDay, toIsoDate } from "@/lib/queries/food-log-day"
+import { db } from "@/db/connection"
+import { userProfiles } from "@/db/schema"
+import { eq } from "drizzle-orm"
 
 const querySchema = z.object({
   date: z.iso.date().optional(),
@@ -24,7 +27,15 @@ export async function GET(request: Request) {
     )
   }
 
-  const date = parsed.data.date ?? toIsoDate(new Date(), "UTC")
+  let date = parsed.data.date
+  if (!date) {
+    const profile = await db.query.userProfiles.findFirst({
+      where: eq(userProfiles.userId, session.user.id),
+      columns: { timezone: true },
+    })
+    const timezone = profile?.timezone ?? "UTC"
+    date = toIsoDate(new Date(), timezone)
+  }
   const payload = await getFoodLogDay(session.user.id, date)
   return NextResponse.json(payload)
 }

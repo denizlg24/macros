@@ -1,6 +1,7 @@
 "use client"
 
 import { format } from "date-fns"
+import { toZonedTime } from "date-fns-tz"
 import { Flame, Pencil, Plus, Utensils } from "lucide-react"
 import Link from "next/link"
 import { useMemo } from "react"
@@ -32,21 +33,23 @@ function hourLabel(hour: number): string {
   return `${hour - 12} PM`
 }
 
-function entryHour(e: FoodLogEntry): number {
+function entryHour(e: FoodLogEntry, timezone: string): number {
   if (!e.eatenAt) return 12
-  return new Date(e.eatenAt).getHours()
+  const zonedDate = toZonedTime(new Date(e.eatenAt), timezone)
+  return zonedDate.getHours()
 }
 
-function entryTimeLabel(e: FoodLogEntry): string {
+function entryTimeLabel(e: FoodLogEntry, timezone: string): string {
   if (!e.eatenAt) return ""
-  return format(new Date(e.eatenAt), "h:mm")
+  const zonedDate = toZonedTime(new Date(e.eatenAt), timezone)
+  return format(zonedDate, "h:mm")
 }
 
 export function Timeline({ data, onDeleteEntry }: Props) {
   const buckets = useMemo<HourBucket[]>(() => {
     const map = new Map<number, FoodLogEntry[]>()
     for (const e of data.entries) {
-      const h = entryHour(e)
+      const h = entryHour(e, data.timezone)
       const arr = map.get(h) ?? []
       arr.push(e)
       map.set(h, arr)
@@ -84,6 +87,7 @@ export function Timeline({ data, onDeleteEntry }: Props) {
           key={b.hour}
           bucket={b}
           date={data.date}
+          timezone={data.timezone}
           onDeleteEntry={onDeleteEntry}
         />
       ))}
@@ -94,10 +98,12 @@ export function Timeline({ data, onDeleteEntry }: Props) {
 function HourRow({
   bucket,
   date,
+  timezone,
   onDeleteEntry,
 }: {
   bucket: HourBucket
   date: string
+  timezone: string
   onDeleteEntry: (entryId: string) => void
 }) {
   const hasEntries = bucket.entries.length > 0
@@ -145,7 +151,12 @@ function HourRow({
       </div>
 
       {bucket.entries.map((e) => (
-        <EntryCard key={e.id} entry={e} onDelete={onDeleteEntry} />
+        <EntryCard
+          key={e.id}
+          entry={e}
+          timezone={timezone}
+          onDelete={onDeleteEntry}
+        />
       ))}
     </div>
   )
@@ -170,12 +181,14 @@ function MacroPill({
 
 function EntryCard({
   entry,
+  timezone,
   onDelete,
 }: {
   entry: FoodLogEntry
+  timezone: string
   onDelete: (id: string) => void
 }) {
-  const time = entryTimeLabel(entry)
+  const time = entryTimeLabel(entry, timezone)
   const grams =
     entry.servingUnit.toLowerCase().includes("g") &&
     !entry.servingUnit.toLowerCase().includes("kg")
@@ -216,7 +229,7 @@ function EntryCard({
           type="button"
           variant="ghost"
           size="icon"
-          aria-label="Edit entry"
+          aria-label="Delete entry"
           onClick={() => onDelete(entry.id)}
           className="shrink-0 size-8 rounded-full bg-muted hover:bg-destructive/10"
         >

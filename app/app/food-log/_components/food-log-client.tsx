@@ -184,6 +184,8 @@ function NotesPlaceholder() {
           size="icon"
           className="rounded-full"
           aria-label="Add note"
+          disabled
+          aria-disabled="true"
         >
           <Plus className="size-4" />
         </Button>

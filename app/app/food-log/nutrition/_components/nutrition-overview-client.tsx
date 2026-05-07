@@ -1,11 +1,11 @@
 "use client"
 
 import { useQuery } from "@tanstack/react-query"
-import { format, parseISO } from "date-fns"
+import { format, isValid, parseISO } from "date-fns"
 import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useHydrated } from "@/hooks/use-hydrated"
 import { foodLogQueryKeys } from "@/lib/app-cache/food-log-keys"
@@ -166,18 +166,33 @@ export function NutritionOverviewClient() {
   const searchParams = useSearchParams()
   const today = todayIsoLocal()
   const dateParam = searchParams.get("date")
-  const selectedDate =
-    dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : null
+
+  const selectedDate = useMemo(() => {
+    if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+      const parsed = parseISO(`${dateParam}T00:00:00`)
+      if (isValid(parsed)) {
+        return dateParam
+      }
+    }
+    return null
+  }, [dateParam])
+
   const isTodaySelected = selectedDate === null || selectedDate === today
 
   const dayTabLabel = useMemo(() => {
     if (!selectedDate || isTodaySelected) return "Yesterday"
-    return format(parseISO(`${selectedDate}T00:00:00`), "EEE, MMM d")
+    const parsed = parseISO(`${selectedDate}T00:00:00`)
+    return isValid(parsed) ? format(parsed, "EEE, MMM d") : "Yesterday"
   }, [selectedDate, isTodaySelected])
 
   const [range, setRange] = useState<OverviewRange>(() =>
     isTodaySelected ? "1w" : "yesterday"
   )
+
+  useEffect(() => {
+    setRange(isTodaySelected ? "1w" : "yesterday")
+  }, [isTodaySelected])
+
   const queryDate = range === "yesterday" ? selectedDate : null
   const { data, isLoading, isError } = useQuery({
     queryKey: foodLogQueryKeys.overview(range, queryDate ?? undefined),

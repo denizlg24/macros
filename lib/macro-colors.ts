@@ -9,6 +9,8 @@ export const MACRO_COLORS = {
 export type MacroKey = keyof typeof MACRO_COLORS
 
 export function macroColorFor(key: string): string {
-  if (key in MACRO_COLORS) return MACRO_COLORS[key as MacroKey]
+  if (Object.prototype.hasOwnProperty.call(MACRO_COLORS, key)) {
+    return MACRO_COLORS[key as MacroKey]
+  }
   return "#888899"
 }
