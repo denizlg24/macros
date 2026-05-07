@@ -173,10 +173,10 @@ export async function getNutritionOverview(
     const total = totalsByKey[def.key] ?? 0
     const consumed = isAggregate ? total / dayCount : total
     let target: number | null = targetByKey.get(def.key) ?? null
-    if (def.key === "calories") target = macroTargets.calories
-    if (def.key === "protein") target = macroTargets.protein
-    if (def.key === "carbs") target = macroTargets.carbs
-    if (def.key === "fat") target = macroTargets.fat
+    if (def.key === "calories" && macroTargets.calories != null) target = macroTargets.calories
+    if (def.key === "protein" && macroTargets.protein != null) target = macroTargets.protein
+    if (def.key === "carbs" && macroTargets.carbs != null) target = macroTargets.carbs
+    if (def.key === "fat" && macroTargets.fat != null) target = macroTargets.fat
     if (target == null) {
       const whoBase = WHO_DAILY_VALUES[def.key as NutrientKey]
       target = scaleWhoValue(whoBase, userWeightKg)

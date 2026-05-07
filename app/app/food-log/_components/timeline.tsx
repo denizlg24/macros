@@ -2,7 +2,7 @@
 
 import { format } from "date-fns"
 import { toZonedTime } from "date-fns-tz"
-import { Flame, Pencil, Plus, Utensils } from "lucide-react"
+import { Flame, Pencil, Plus, Trash2, Utensils } from "lucide-react"
 import Link from "next/link"
 import { useMemo } from "react"
 import { Button } from "@/components/ui/button"
@@ -67,7 +67,7 @@ export function Timeline({ data, onDeleteEntry }: Props) {
       )
       return { hour, label: hourLabel(hour), totals, entries }
     })
-  }, [data.entries])
+  }, [data.entries, data.timezone])
 
   let earliest = VISIBLE_START_HOUR
   let latest = VISIBLE_END_HOUR
@@ -233,7 +233,7 @@ function EntryCard({
           onClick={() => onDelete(entry.id)}
           className="shrink-0 size-8 rounded-full bg-muted hover:bg-destructive/10"
         >
-          <Pencil className="size-3.5" />
+          <Trash2 className="size-3.5" />
         </Button>
       </div>
     </div>
