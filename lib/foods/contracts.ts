@@ -97,6 +97,15 @@ export const externalSummaryResponseSchema = z.object({
   requestId: z.string().optional(),
 })
 
+export const externalCreateResponseSchema = z.object({
+  success: z.literal(true),
+  data: z.object({
+    item: externalFoodSummarySchema,
+    nutrition: externalFoodNutritionSchema,
+  }),
+  requestId: z.string().optional(),
+})
+
 export const externalNutritionResponseSchema = z.object({
   success: z.literal(true),
   data: externalFoodNutritionSchema,

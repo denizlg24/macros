@@ -360,14 +360,13 @@ export async function createCustomFood(userId: string, input: CreateFoodInput) {
   )
 
   if (input.barcode) {
-    const summary = await createNutritionFood({
+    const { summary, nutrition } = await createNutritionFood({
       barcode: input.barcode,
       name: input.name,
       brand: input.brand,
       serving: primaryServing,
       nutrients: nutrientsPerPrimaryServing,
     })
-    const nutrition = await getNutritionFoodNutrition(summary.id)
     const foodId = await upsertExternalFood(summary)
     const snapshotId = await createFoodSnapshot(foodId, summary, nutrition)
 
