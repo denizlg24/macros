@@ -2,7 +2,7 @@
 
 import { format } from "date-fns"
 import { toZonedTime } from "date-fns-tz"
-import { Flame, Pencil, Plus, Trash2, Utensils } from "lucide-react"
+import { Flame, Plus, Trash2, Utensils } from "lucide-react"
 import Link from "next/link"
 import { useMemo } from "react"
 import { Button } from "@/components/ui/button"
