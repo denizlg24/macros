@@ -1,0 +1,30 @@
+import { NextResponse } from "next/server"
+import { z } from "zod"
+
+import { getRequiredSession } from "@/lib/api/session"
+import { getFoodLogDay, toIsoDate } from "@/lib/queries/food-log-day"
+
+const querySchema = z.object({
+  date: z.iso.date().optional(),
+})
+
+export async function GET(request: Request) {
+  const { session, response } = await getRequiredSession()
+  if (!session) return response
+
+  const url = new URL(request.url)
+  const parsed = querySchema.safeParse({
+    date: url.searchParams.get("date") ?? undefined,
+  })
+
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "Invalid date", issues: parsed.error.issues },
+      { status: 400 }
+    )
+  }
+
+  const date = parsed.data.date ?? toIsoDate(new Date(), "UTC")
+  const payload = await getFoodLogDay(session.user.id, date)
+  return NextResponse.json(payload)
+}
