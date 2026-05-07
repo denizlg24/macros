@@ -405,13 +405,23 @@ export function CreateFoodDrawer({
                             <Input
                               id={`serving-weight-${serving.uid}`}
                               value={serving.weightGrams}
-                              onChange={(event) =>
+                              onChange={(event) => {
+                                const normalized = event.target.value.replace(
+                                  ",",
+                                  "."
+                                )
+                                if (
+                                  normalized !== "" &&
+                                  !/^\d*\.?\d*$/.test(normalized)
+                                ) {
+                                  return
+                                }
                                 updateServing(
                                   serving.uid,
                                   "weightGrams",
-                                  event.target.value
+                                  normalized
                                 )
-                              }
+                              }}
                               inputMode="decimal"
                               placeholder="30"
                             />
