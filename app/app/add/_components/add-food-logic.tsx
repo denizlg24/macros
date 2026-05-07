@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/drawer"
 import { Input } from "@/components/ui/input"
 import { setTodayNutritionTotals, useFoodHistory } from "@/lib/app-cache/api"
+import { foodLogQueryKeys } from "@/lib/app-cache/food-log-keys"
 import { queryKeys } from "@/lib/app-cache/query-keys"
 import {
   type FoodHistoryItem,
@@ -54,6 +55,7 @@ import {
   subscribeToPendingFoods,
   writePendingFoods,
 } from "@/lib/foods/pending-foods"
+import { MACRO_COLORS } from "@/lib/macro-colors"
 import {
   addOptimisticNutritionEntry,
   type OptimisticDailyMacros,
@@ -61,6 +63,7 @@ import {
   removeOptimisticNutritionEntries,
 } from "@/lib/optimistic-nutrition"
 import type { DailyCalorieSummary } from "@/lib/queries/calorie-summary"
+import type { FoodLogDayPayload } from "@/lib/queries/food-log-day"
 import { cn } from "@/lib/utils"
 import {
   getCachedFoodSearch,
@@ -646,7 +649,7 @@ function CaloriePill({
             height={rh}
             rx={rx}
             fill="none"
-            stroke="#3b82f6"
+            stroke={MACRO_COLORS.calories}
             strokeWidth={SW}
             strokeDasharray={`${fillLength} ${perimeter}`}
             strokeDashoffset={-startOffset}
@@ -661,7 +664,8 @@ function CaloriePill({
             height={rh}
             rx={rx}
             fill="none"
-            stroke="#93c5fd"
+            stroke={MACRO_COLORS.calories}
+            opacity={0.5}
             strokeWidth={SW}
             strokeDasharray={`${pendingFillLength} ${perimeter}`}
             strokeDashoffset={-(startOffset + fillLength)}
@@ -884,7 +888,10 @@ export function HeaderChips({
             aria-label={`${pendingCount} foods staged`}
           >
             <Utensils className="size-4" />
-            <span className="absolute -right-0.5 -top-0.5 flex size-4 items-center justify-center rounded-full bg-blue-500 text-[9px] font-bold text-foreground">
+            <span
+              className="absolute -right-0.5 -top-0.5 flex size-4 items-center justify-center rounded-full text-[9px] font-bold text-foreground"
+              style={{ backgroundColor: MACRO_COLORS.calories }}
+            >
               {pendingCount}
             </span>
           </button>
@@ -1257,12 +1264,25 @@ export function AddFoodLogic({
   const trimmed = draft.trim()
   const hasQuery = trimmed.length > 0
 
-  const [selectedDate, setSelectedDate] = useState(() =>
-    dateFromIsoDate(calorieSummary.today)
-  )
-  const [selectedHour, setSelectedHour] = useState(() =>
-    getHourInTimezone(new Date(), calorieSummary.timezone)
-  )
+  const [selectedDate, setSelectedDate] = useState(() => {
+    const fromUrl = searchParams.get("date")
+    if (fromUrl && /^\d{4}-\d{2}-\d{2}$/.test(fromUrl)) {
+      const parsed = new Date(fromUrl)
+      const formatted = parsed.toISOString().slice(0, 10)
+      if (formatted === fromUrl) {
+        return dateFromIsoDate(fromUrl)
+      }
+    }
+    return dateFromIsoDate(calorieSummary.today)
+  })
+  const [selectedHour, setSelectedHour] = useState(() => {
+    const fromUrl = searchParams.get("hour")
+    if (fromUrl != null) {
+      const parsed = Number.parseInt(fromUrl, 10)
+      if (Number.isFinite(parsed) && parsed >= 0 && parsed <= 23) return parsed
+    }
+    return getHourInTimezone(new Date(), calorieSummary.timezone)
+  })
   const hourLabel = formatHourLabel(selectedHour)
 
   const eatenAt = useMemo(() => {
@@ -1364,13 +1384,51 @@ export function AddFoodLogic({
       setExtraConsumed((prev) => prev + optimisticToday)
 
       for (const food of foodsToLog) {
-        if (food.input.logDate !== calorieSummary.today) continue
+        const foodLogDate = food.input.logDate ?? calorieSummary.today
+        if (foodLogDate === calorieSummary.today) {
+          addOptimisticNutritionEntry({
+            id: food.uid,
+            logDate: calorieSummary.today,
+            macros: food.macros,
+          })
+        }
 
-        addOptimisticNutritionEntry({
-          id: food.uid,
-          logDate: calorieSummary.today,
-          macros: food.macros,
-        })
+        queryClient.setQueryData<FoodLogDayPayload | undefined>(
+          foodLogQueryKeys.day(foodLogDate),
+          (prev) => {
+            if (!prev) return prev
+            const fakeEntry: FoodLogDayPayload["entries"][number] = {
+              id: food.uid,
+              logDate: foodLogDate,
+              eatenAt: food.input.eatenAt ?? null,
+              mealType: food.input.mealType ?? "snack",
+              entryType: "food",
+              foodId: food.input.sourceItemId,
+              recipeId: null,
+              foodName: food.food.name,
+              brand: food.food.brand ?? null,
+              servingLabel: food.food.servingLabel ?? null,
+              servingQuantity: 1,
+              servingUnit: "serving",
+              servingsConsumed: food.input.servingsConsumed,
+              notes: null,
+              calories: food.macros.calories,
+              protein: food.macros.protein,
+              carbs: food.macros.carbs,
+              fat: food.macros.fat,
+            }
+            return {
+              ...prev,
+              entries: [...prev.entries, fakeEntry],
+              totals: {
+                calories: prev.totals.calories + food.macros.calories,
+                protein: prev.totals.protein + food.macros.protein,
+                carbs: prev.totals.carbs + food.macros.carbs,
+                fat: prev.totals.fat + food.macros.fat,
+              },
+            }
+          }
+        )
       }
 
       router.push("/app")
@@ -1420,6 +1478,20 @@ export function AddFoodLogic({
         })
         void queryClient.invalidateQueries({
           queryKey: queryKeys.foodHistory(20),
+        })
+        const touchedDates = new Set(
+          foodsToLog.map((f) => f.input.logDate ?? calorieSummary.today)
+        )
+        for (const d of touchedDates) {
+          void queryClient.invalidateQueries({
+            queryKey: foodLogQueryKeys.day(d),
+          })
+        }
+        void queryClient.invalidateQueries({
+          queryKey: ["food-log", "week-totals"],
+        })
+        void queryClient.invalidateQueries({
+          queryKey: ["food-log", "overview"],
         })
       }
     } finally {

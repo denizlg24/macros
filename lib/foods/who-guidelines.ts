@@ -1,5 +1,18 @@
 import type { NutrientKey } from "@/lib/foods/nutrients"
 
+export const WHO_REFERENCE_WEIGHT_KG = 70
+
+export function scaleWhoValue(
+  baseValue: number | null | undefined,
+  weightKg: number | null | undefined
+): number | null {
+  if (baseValue == null) return null
+  if (weightKg == null || !Number.isFinite(weightKg) || weightKg <= 0) {
+    return baseValue
+  }
+  return baseValue * (weightKg / WHO_REFERENCE_WEIGHT_KG)
+}
+
 export const WHO_DAILY_VALUES: Partial<Record<NutrientKey, number>> = {
   calories: 2000,
   protein: 50,

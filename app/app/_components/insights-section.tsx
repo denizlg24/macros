@@ -1,5 +1,6 @@
 import { ChevronRight } from "lucide-react"
 import Link from "next/link"
+import { MACRO_COLORS } from "@/lib/macro-colors"
 import type { EnergyBalancePoint, GoalProgress } from "@/lib/queries/dashboard"
 
 type Props = {
@@ -63,8 +64,11 @@ export function InsightsSection({ energyBalance, goalProgress }: Props) {
           <div className="flex items-center">
             <div className="flex-1 h-3 bg-muted rounded-full overflow-hidden">
               <div
-                className="h-full bg-green-500 rounded-full transition-all"
-                style={{ width: `${adherencePct}%` }}
+                className="h-full rounded-full transition-all"
+                style={{
+                  width: `${adherencePct}%`,
+                  backgroundColor: MACRO_COLORS.carbs,
+                }}
               />
             </div>
           </div>

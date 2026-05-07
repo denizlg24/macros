@@ -1,3 +1,5 @@
+import { MACRO_COLORS } from "@/lib/macro-colors"
+
 type Props = {
   consumed: number
   target: number | null
@@ -47,7 +49,7 @@ export function CalorieRing({
           cy={cy}
           r={r}
           fill="none"
-          stroke="#3b82f6"
+          stroke={MACRO_COLORS.calories}
           strokeWidth={strokeWidth}
           strokeDasharray={`${fillLength} ${circ - fillLength}`}
           strokeLinecap="round"
