@@ -1,4 +1,4 @@
-import { and, between, eq } from "drizzle-orm"
+import { and, between, desc, eq } from "drizzle-orm"
 
 import { db } from "@/db/connection"
 import {
@@ -6,8 +6,17 @@ import {
   nutrientTargets,
   nutritionPlans,
   userProfiles,
+  weightTrendPoints,
 } from "@/db/schema"
-import { nutrientDefinitionsInput } from "@/lib/foods/nutrients"
+import {
+  type NutrientKey,
+  nutrientDefinitionsInput,
+} from "@/lib/foods/nutrients"
+import {
+  NUTRIENT_UPPER_LIMITS,
+  scaleWhoValue,
+  WHO_DAILY_VALUES,
+} from "@/lib/foods/who-guidelines"
 import { toIsoDate } from "./food-log-day"
 
 export type OverviewRange = "yesterday" | "1w" | "1m" | "3m" | "1y"
@@ -20,6 +29,7 @@ export interface NutrientRow {
   sortOrder: number
   consumed: number
   target: number | null
+  upperLimit: number | null
 }
 
 export interface NutritionOverviewPayload {
@@ -39,7 +49,8 @@ export interface NutritionOverviewPayload {
 
 function rangeBounds(
   range: OverviewRange,
-  today: string
+  today: string,
+  specificDate?: string
 ): {
   start: string
   end: string
@@ -47,6 +58,9 @@ function rangeBounds(
   const end = new Date(`${today}T00:00:00Z`)
   const start = new Date(`${today}T00:00:00Z`)
   if (range === "yesterday") {
+    if (specificDate) {
+      return { start: specificDate, end: specificDate }
+    }
     start.setUTCDate(start.getUTCDate() - 1)
     end.setUTCDate(end.getUTCDate() - 1)
   } else if (range === "1w") {
@@ -66,15 +80,23 @@ function rangeBounds(
 
 export async function getNutritionOverview(
   userId: string,
-  range: OverviewRange
+  range: OverviewRange,
+  specificDate?: string
 ): Promise<NutritionOverviewPayload> {
   const profile = await db.query.userProfiles.findFirst({
     where: eq(userProfiles.userId, userId),
     columns: { timezone: true },
   })
   const timezone = profile?.timezone ?? "UTC"
+
+  const latestWeight = await db.query.weightTrendPoints.findFirst({
+    where: eq(weightTrendPoints.userId, userId),
+    orderBy: desc(weightTrendPoints.logDate),
+    columns: { trendWeightKg: true },
+  })
+  const userWeightKg = latestWeight ? Number(latestWeight.trendWeightKg) : null
   const today = toIsoDate(new Date(), timezone)
-  const { start, end } = rangeBounds(range, today)
+  const { start, end } = rangeBounds(range, today, specificDate)
 
   const plan = await db.query.nutritionPlans.findFirst({
     where: and(
@@ -149,6 +171,11 @@ export async function getNutritionOverview(
     if (def.key === "protein") target = macroTargets.protein
     if (def.key === "carbs") target = macroTargets.carbs
     if (def.key === "fat") target = macroTargets.fat
+    if (target == null) {
+      const whoBase = WHO_DAILY_VALUES[def.key as NutrientKey]
+      target = scaleWhoValue(whoBase, userWeightKg)
+    }
+    const upperLimit = NUTRIENT_UPPER_LIMITS[def.key as NutrientKey] ?? null
     return {
       key: def.key,
       label: def.label,
@@ -157,6 +184,7 @@ export async function getNutritionOverview(
       sortOrder: def.sortOrder,
       consumed,
       target,
+      upperLimit,
     }
   })
 

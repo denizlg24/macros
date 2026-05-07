@@ -9,7 +9,6 @@ import type {
   FoodLogDayPayload,
   FoodLogEntry,
 } from "@/lib/queries/food-log-day"
-import { cn } from "@/lib/utils"
 
 type Props = {
   data: FoodLogDayPayload
@@ -22,6 +21,9 @@ type HourBucket = {
   totals: { calories: number; protein: number; fat: number; carbs: number }
   entries: FoodLogEntry[]
 }
+
+const VISIBLE_START_HOUR = 7
+const VISIBLE_END_HOUR = 23
 
 function hourLabel(hour: number): string {
   if (hour === 0) return "12 AM"
@@ -64,23 +66,15 @@ export function Timeline({ data, onDeleteEntry }: Props) {
     })
   }, [data.entries])
 
-  const visibleStart = useMemo(() => {
-    const firstWithEntry = buckets.findIndex((b) => b.entries.length > 0)
-    return firstWithEntry === -1 ? 7 : Math.max(0, firstWithEntry - 1)
-  }, [buckets])
-
-  const visibleEnd = useMemo(() => {
-    let last = -1
-    for (let i = buckets.length - 1; i >= 0; i--) {
-      if (buckets[i].entries.length > 0) {
-        last = i
-        break
-      }
+  let earliest = VISIBLE_START_HOUR
+  let latest = VISIBLE_END_HOUR
+  for (const b of buckets) {
+    if (b.entries.length > 0) {
+      if (b.hour < earliest) earliest = b.hour
+      if (b.hour > latest) latest = b.hour
     }
-    return last === -1 ? 22 : Math.min(23, last + 1)
-  }, [buckets])
-
-  const visibleBuckets = buckets.slice(visibleStart, visibleEnd + 1)
+  }
+  const visibleBuckets = buckets.slice(earliest, latest + 1)
 
   return (
     <div className="relative px-3 pt-2 pb-6">
@@ -110,19 +104,24 @@ function HourRow({
 
   return (
     <div className="relative">
-      <div className="flex items-center gap-2 py-2">
-        <div className="flex items-center gap-2">
-          <span className="inline-flex items-center justify-center min-w-12 px-2 h-6 rounded-full bg-muted/60 text-xs text-muted-foreground tabular-nums">
-            {bucket.label}
-          </span>
-          <Link
-            href={`/app/add?focus=search&date=${date}&hour=${bucket.hour}`}
-            aria-label={`Add food at ${bucket.label}`}
-            className="inline-flex items-center justify-center size-6 rounded-full bg-muted/60 text-muted-foreground hover:bg-muted"
-          >
-            <Plus className="size-3.5" />
-          </Link>
-        </div>
+      <div className="relative flex items-center gap-2 py-2 pl-[4.25rem]">
+        <span
+          className="absolute inline-flex items-center justify-center min-w-12 px-2 h-6 rounded-full bg-background border border-border text-xs text-muted-foreground tabular-nums whitespace-nowrap"
+          style={{
+            left: "2.5rem",
+            top: "50%",
+            transform: "translate(-50%, -50%)",
+          }}
+        >
+          {bucket.label}
+        </span>
+        <Link
+          href={`/app/add?focus=search&date=${date}&hour=${bucket.hour}`}
+          aria-label={`Add food at ${bucket.label}`}
+          className="inline-flex items-center justify-center size-6 rounded-full bg-muted/60 text-muted-foreground hover:bg-muted"
+        >
+          <Plus className="size-3.5" />
+        </Link>
         {hasEntries ? (
           <div className="ml-auto flex items-center gap-3 text-xs tabular-nums text-muted-foreground">
             <MacroPill
@@ -184,33 +183,32 @@ function EntryCard({
       : `${formatNumber(entry.servingsConsumed)} ${entry.servingLabel ?? entry.servingUnit}`
 
   return (
-    <div className="relative pl-14 pr-1 pb-2">
+    <div className="relative pl-20 pr-1 pb-2">
       {time ? (
-        <span className="absolute left-0 top-3 text-[10px] tabular-nums text-muted-foreground w-12 text-right pr-1">
+        <span
+          className="absolute top-3 -translate-x-1/2 text-[10px] tabular-nums text-muted-foreground bg-background px-1.5 py-0.5 rounded-full border border-border/40 leading-none"
+          style={{ left: "2.5rem" }}
+        >
           {time}
         </span>
       ) : null}
       <div className="rounded-xl bg-muted/40 px-3 py-2.5 flex items-center gap-3">
-        <div
-          className={cn(
-            "shrink-0 inline-flex items-center justify-center size-9 rounded-md bg-muted text-teal-500"
-          )}
-        >
+        <div className="shrink-0 inline-flex items-center justify-center size-9 rounded-md bg-muted text-muted-foreground">
           <Utensils className="size-4" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium leading-tight line-clamp-2">
+          <p className="text-sm font-medium leading-tight line-clamp-2 truncate">
             {entry.foodName}
           </p>
           <p className="text-[11px] text-muted-foreground tabular-nums mt-0.5">
             <span className="font-semibold">{Math.round(entry.calories)}</span>
-            <Flame className="inline size-3 -mt-0.5 ml-0.5 mr-2 text-blue-500" />
+            <Flame className="inline size-3 -mt-0.5 ml-0.5 mr-2 text-muted-foreground" />
             <span className="font-semibold">{Math.round(entry.protein)}</span>
-            <span className="font-semibold text-orange-500">P </span>
+            <span className="font-semibold">P </span>
             <span className="font-semibold">{Math.round(entry.fat)}</span>
-            <span className="font-semibold text-yellow-500">F </span>
+            <span className="font-semibold">F </span>
             <span className="font-semibold">{Math.round(entry.carbs)}</span>
-            <span className="font-semibold text-green-500">C </span>
+            <span className="font-semibold">C </span>
             <span className="text-muted-foreground"> • {grams}</span>
           </p>
         </div>
@@ -218,7 +216,7 @@ function EntryCard({
           type="button"
           variant="ghost"
           size="icon"
-          aria-label="Delete entry"
+          aria-label="Edit entry"
           onClick={() => onDelete(entry.id)}
           className="shrink-0 size-8 rounded-full bg-muted hover:bg-destructive/10"
         >

@@ -3,7 +3,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { ChevronRight, ListChecks, Plus, SlidersHorizontal } from "lucide-react"
 import Link from "next/link"
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { toast } from "sonner"
 import {
   AlertDialog,
@@ -20,7 +20,8 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { useHydrated } from "@/hooks/use-hydrated"
 import { foodLogQueryKeys } from "@/lib/app-cache/food-log-keys"
 import type { FoodLogDayPayload } from "@/lib/queries/food-log-day"
-import { todayIso } from "../_lib/date-utils"
+import type { WeekTotalsPayload } from "@/lib/queries/food-log-week-totals"
+import { todayIso, weekDaysFor } from "../_lib/date-utils"
 import { FoodLogHeader } from "./food-log-header"
 import { Timeline } from "./timeline"
 
@@ -36,6 +37,19 @@ async function fetchDay(
   return res.json() as Promise<FoodLogDayPayload>
 }
 
+async function fetchWeekTotals(
+  start: string,
+  end: string,
+  signal?: AbortSignal
+): Promise<WeekTotalsPayload> {
+  const res = await fetch(
+    `/api/food-log/week-totals?start=${start}&end=${end}`,
+    { signal, cache: "no-store" }
+  )
+  if (!res.ok) throw new Error(`Failed to load week totals (${res.status})`)
+  return res.json() as Promise<WeekTotalsPayload>
+}
+
 export function FoodLogClient() {
   const hydrated = useHydrated()
   const [selectedDate, setSelectedDate] = useState<string>(() => todayIso())
@@ -49,6 +63,16 @@ export function FoodLogClient() {
     enabled: hydrated,
   })
 
+  const week = useMemo(() => weekDaysFor(selectedDate), [selectedDate])
+  const weekStart = week[0]!.iso
+  const weekEnd = week[week.length - 1]!.iso
+
+  const { data: weekTotals } = useQuery({
+    queryKey: foodLogQueryKeys.weekTotals(weekStart, weekEnd),
+    queryFn: ({ signal }) => fetchWeekTotals(weekStart, weekEnd, signal),
+    enabled: hydrated,
+  })
+
   async function performDelete(id: string) {
     setIsDeleting(true)
     try {
@@ -58,6 +82,9 @@ export function FoodLogClient() {
       if (!res.ok) throw new Error(`Delete failed (${res.status})`)
       await queryClient.invalidateQueries({
         queryKey: foodLogQueryKeys.day(selectedDate),
+      })
+      await queryClient.invalidateQueries({
+        queryKey: foodLogQueryKeys.weekTotals(weekStart, weekEnd),
       })
       await queryClient.invalidateQueries({ queryKey: ["app", "dashboard"] })
       await queryClient.invalidateQueries({
@@ -78,6 +105,7 @@ export function FoodLogClient() {
         selectedDate={selectedDate}
         onDateChange={setSelectedDate}
         data={data ?? null}
+        weekTotals={weekTotals ?? null}
       />
 
       {!hydrated || isLoading ? (
@@ -100,7 +128,7 @@ export function FoodLogClient() {
         <>
           <Timeline data={data} onDeleteEntry={setPendingDeleteId} />
           <NotesPlaceholder />
-          <MoreBlock />
+          <MoreBlock selectedDate={selectedDate} />
         </>
       ) : null}
 
@@ -167,13 +195,13 @@ function NotesPlaceholder() {
   )
 }
 
-function MoreBlock() {
+function MoreBlock({ selectedDate }: { selectedDate: string }) {
   return (
     <section className="px-4 pt-2 pb-10">
       <h2 className="text-2xl font-semibold tracking-tight mb-2">More</h2>
       <div className="rounded-xl bg-muted/40 divide-y divide-border/40">
         <Link
-          href="/app/food-log/nutrition"
+          href={`/app/food-log/nutrition?date=${selectedDate}`}
           className="flex items-center gap-3 px-4 py-4"
         >
           <ListChecks className="size-5 text-foreground" />

@@ -1,8 +1,8 @@
 "use client"
 
 import { Flame } from "lucide-react"
+import { MACRO_COLORS } from "@/lib/macro-colors"
 import type { FoodLogDayPayload } from "@/lib/queries/food-log-day"
-import { cn } from "@/lib/utils"
 
 type Macro = {
   key: "calories" | "protein" | "fat" | "carbs"
@@ -11,10 +11,10 @@ type Macro = {
 }
 
 const MACROS: Macro[] = [
-  { key: "calories", letter: "", color: "bg-blue-500" },
-  { key: "protein", letter: "P", color: "bg-orange-500" },
-  { key: "fat", letter: "F", color: "bg-yellow-500" },
-  { key: "carbs", letter: "C", color: "bg-green-500" },
+  { key: "calories", letter: "", color: MACRO_COLORS.calories },
+  { key: "protein", letter: "P", color: MACRO_COLORS.protein },
+  { key: "fat", letter: "F", color: MACRO_COLORS.fat },
+  { key: "carbs", letter: "C", color: MACRO_COLORS.carbs },
 ]
 
 function fmt(n: number): string {
@@ -36,7 +36,7 @@ export function MacroSummaryBar({ data }: { data: FoodLogDayPayload | null }) {
             <div key={m.key} className="flex-1 flex flex-col gap-1 min-w-0">
               <div className="flex items-center gap-1 text-xs tabular-nums">
                 {m.key === "calories" ? (
-                  <Flame className="size-3.5 text-blue-500 shrink-0" />
+                  <Flame className="size-3.5 shrink-0 text-muted-foreground" />
                 ) : (
                   <span className="font-bold text-[11px] shrink-0">
                     {m.letter}
@@ -49,8 +49,8 @@ export function MacroSummaryBar({ data }: { data: FoodLogDayPayload | null }) {
               </div>
               <div className="h-1 rounded-full bg-muted overflow-hidden">
                 <div
-                  className={cn("h-full rounded-full", m.color)}
-                  style={{ width: `${pct}%` }}
+                  className="h-full rounded-full"
+                  style={{ width: `${pct}%`, backgroundColor: m.color }}
                 />
               </div>
             </div>

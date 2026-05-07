@@ -9,6 +9,7 @@ import {
 
 const querySchema = z.object({
   range: z.enum(["yesterday", "1w", "1m", "3m", "1y"]).optional(),
+  date: z.iso.date().optional(),
 })
 
 export async function GET(request: Request) {
@@ -18,6 +19,7 @@ export async function GET(request: Request) {
   const url = new URL(request.url)
   const parsed = querySchema.safeParse({
     range: url.searchParams.get("range") ?? undefined,
+    date: url.searchParams.get("date") ?? undefined,
   })
 
   if (!parsed.success) {
@@ -28,6 +30,10 @@ export async function GET(request: Request) {
   }
 
   const range: OverviewRange = parsed.data.range ?? "yesterday"
-  const payload = await getNutritionOverview(session.user.id, range)
+  const payload = await getNutritionOverview(
+    session.user.id,
+    range,
+    parsed.data.date
+  )
   return NextResponse.json(payload)
 }
