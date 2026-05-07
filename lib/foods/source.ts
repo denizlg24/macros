@@ -2,6 +2,7 @@ import {
   type CreateFoodInput,
   type ExternalFoodNutrition,
   type ExternalFoodSummary,
+  externalCreateResponseSchema,
   externalNutritionResponseSchema,
   externalSearchResponseSchema,
   externalSummaryResponseSchema,
@@ -128,7 +129,10 @@ export async function createNutritionFood(input: {
   brand: string | null
   serving: CreateFoodInput["servingSizes"][number]
   nutrients: Record<string, number>
-}): Promise<ExternalFoodSummary> {
+}): Promise<{
+  summary: ExternalFoodSummary
+  nutrition: ExternalFoodNutrition
+}> {
   const payload = {
     barcode: input.barcode,
     name: input.name,
@@ -147,10 +151,13 @@ export async function createNutritionFood(input: {
       body: JSON.stringify(payload),
     })
 
-    return externalSummaryResponseSchema.parse(json).data
+    const { item, nutrition } = externalCreateResponseSchema.parse(json).data
+    return { summary: item, nutrition }
   } catch (error) {
     if (error instanceof NutritionSourceError && error.status === 409) {
-      return getNutritionFoodByBarcode(input.barcode)
+      const summary = await getNutritionFoodByBarcode(input.barcode)
+      const nutrition = await getNutritionFoodNutrition(summary.id)
+      return { summary, nutrition }
     }
 
     throw error
