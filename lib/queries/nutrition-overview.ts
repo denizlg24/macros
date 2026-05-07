@@ -157,8 +157,9 @@ export async function getNutritionOverview(
   const endDate = new Date(end)
   const dayCount = Math.max(
     1,
-    Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) +
-      1
+    Math.floor(
+      (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)
+    ) + 1
   )
   const isAggregate = range !== "yesterday"
 
@@ -173,9 +174,12 @@ export async function getNutritionOverview(
     const total = totalsByKey[def.key] ?? 0
     const consumed = isAggregate ? total / dayCount : total
     let target: number | null = targetByKey.get(def.key) ?? null
-    if (def.key === "calories" && macroTargets.calories != null) target = macroTargets.calories
-    if (def.key === "protein" && macroTargets.protein != null) target = macroTargets.protein
-    if (def.key === "carbs" && macroTargets.carbs != null) target = macroTargets.carbs
+    if (def.key === "calories" && macroTargets.calories != null)
+      target = macroTargets.calories
+    if (def.key === "protein" && macroTargets.protein != null)
+      target = macroTargets.protein
+    if (def.key === "carbs" && macroTargets.carbs != null)
+      target = macroTargets.carbs
     if (def.key === "fat" && macroTargets.fat != null) target = macroTargets.fat
     if (target == null) {
       const whoBase = WHO_DAILY_VALUES[def.key as NutrientKey]

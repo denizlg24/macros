@@ -1,11 +1,10 @@
+import { eq } from "drizzle-orm"
 import { NextResponse } from "next/server"
 import { z } from "zod"
-
-import { getRequiredSession } from "@/lib/api/session"
-import { getFoodLogDay, toIsoDate } from "@/lib/queries/food-log-day"
 import { db } from "@/db/connection"
 import { userProfiles } from "@/db/schema"
-import { eq } from "drizzle-orm"
+import { getRequiredSession } from "@/lib/api/session"
+import { getFoodLogDay, toIsoDate } from "@/lib/queries/food-log-day"
 
 const querySchema = z.object({
   date: z.iso.date().optional(),
