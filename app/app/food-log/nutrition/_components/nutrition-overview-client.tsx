@@ -393,7 +393,7 @@ function NutrientRow({
               ? ` / ${formatValue(target, row.unit)} ${row.unit}`
               : ` ${row.unit}`}
           </span>
-          <span className="text-sm tabular-nums text-muted-foreground min-w-[3.5rem] text-right">
+          <span className="text-sm tabular-nums text-muted-foreground min-w-14 text-right">
             {pct != null ? `${pct}%` : "No Target"}
           </span>
         </div>
@@ -411,7 +411,7 @@ function NutrientRow({
           {target != null ? ` / ${formatValue(target, row.unit)}` : ""}{" "}
           {row.unit}
         </span>
-        <span className="text-xs tabular-nums text-muted-foreground min-w-[3.5rem] text-right">
+        <span className="text-xs tabular-nums text-muted-foreground min-w-14 text-right">
           {pct != null ? `${pct}%` : "No Target"}
         </span>
       </div>

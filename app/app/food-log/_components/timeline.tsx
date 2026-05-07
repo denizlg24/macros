@@ -81,7 +81,7 @@ export function Timeline({ data, onDeleteEntry }: Props) {
 
   return (
     <div className="relative px-3 pt-2 pb-6">
-      <div className="absolute left-[3.25rem] top-2 bottom-6 w-px bg-border" />
+      <div className="absolute left-13 top-2 bottom-6 w-px bg-border" />
       {visibleBuckets.map((b) => (
         <HourRow
           key={b.hour}
@@ -110,7 +110,7 @@ function HourRow({
 
   return (
     <div className="relative">
-      <div className="relative flex items-center gap-2 py-2 pl-[4.25rem]">
+      <div className="relative flex items-center gap-2 py-2 pl-17">
         <span
           className="absolute inline-flex items-center justify-center min-w-12 px-2 h-6 rounded-full bg-background border border-border text-xs text-muted-foreground tabular-nums whitespace-nowrap"
           style={{
