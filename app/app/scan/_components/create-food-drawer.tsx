@@ -407,7 +407,7 @@ export function CreateFoodDrawer({
                               value={serving.weightGrams}
                               onChange={(event) => {
                                 const normalized = event.target.value.replace(
-                                  ",",
+                                  /,/g,
                                   "."
                                 )
                                 if (

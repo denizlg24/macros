@@ -87,7 +87,7 @@ function DraftNumberInput({
   }, [value])
 
   const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const normalized = event.target.value.replace(",", ".")
+    const normalized = event.target.value.replace(/,/g, ".")
     if (normalized !== "" && !PARTIAL_NUMERIC_RE.test(normalized)) return
     setLocal(normalized)
     onCommit(normalized)
