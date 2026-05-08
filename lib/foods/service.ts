@@ -30,6 +30,7 @@ import type {
   FoodSearchItem,
   LogFoodInput,
   LogFoodResult,
+  UpdateFoodInput,
 } from "@/lib/foods/contracts"
 import { externalFoodNutritionSchema } from "@/lib/foods/contracts"
 import {
@@ -473,6 +474,7 @@ export async function getCustomFoodSnapshot(userId: string, foodId: string) {
       food: {
         columns: {
           id: true,
+          ownerUserId: true,
           barcode: true,
           name: true,
           brand: true,
@@ -557,6 +559,7 @@ export async function getUserCustomFoods(
       food: {
         columns: {
           id: true,
+          ownerUserId: true,
           barcode: true,
           name: true,
           brand: true,
@@ -577,6 +580,151 @@ export async function getUserCustomFoods(
   }
 
   return items
+}
+
+export async function updateCustomFood(
+  userId: string,
+  foodId: string,
+  input: UpdateFoodInput
+) {
+  const customFood = await db.query.userCustomFoods.findFirst({
+    where: and(
+      eq(userCustomFoods.userId, userId),
+      eq(userCustomFoods.foodId, foodId),
+      isNull(userCustomFoods.deletedAt)
+    ),
+    with: {
+      food: {
+        columns: {
+          id: true,
+          ownerUserId: true,
+          barcode: true,
+          name: true,
+          brand: true,
+        },
+      },
+    },
+  })
+
+  if (!customFood) {
+    return null
+  }
+
+  const now = new Date()
+  const nowIso = now.toISOString()
+  const primaryServing = getPrimaryServing(input)
+  const nutrientsPerPrimaryServing = scaleNutrientsForServing(
+    input.nutrients,
+    primaryServing
+  )
+
+  return db.transaction(async (tx) => {
+    const [food] =
+      customFood.food.ownerUserId === userId
+        ? await tx
+            .update(foods)
+            .set({
+              name: input.name,
+              brand: input.brand,
+              updatedAt: now,
+            })
+            .where(eq(foods.id, foodId))
+            .returning({
+              id: foods.id,
+              barcode: foods.barcode,
+              name: foods.name,
+              brand: foods.brand,
+            })
+        : await tx
+            .insert(foods)
+            .values({
+              ownerUserId: userId,
+              source: "custom",
+              externalItemId: null,
+              barcode: customFood.food.barcode,
+              name: input.name,
+              brand: input.brand,
+            })
+            .returning({
+              id: foods.id,
+              barcode: foods.barcode,
+              name: foods.name,
+              brand: foods.brand,
+            })
+
+    if (!food) {
+      throw new Error("Failed to update food")
+    }
+
+    if (food.id !== foodId) {
+      await tx
+        .update(userCustomFoods)
+        .set({ foodId: food.id, updatedAt: now })
+        .where(eq(userCustomFoods.id, customFood.id))
+    }
+
+    const nutrition = externalFoodNutritionSchema.parse({
+      itemId: food.id,
+      servingLabel: primaryServing.label,
+      servingQnty: primaryServing.quantity,
+      servingQuantity: primaryServing.quantity,
+      servingUnit: primaryServing.unit,
+      nutrients: nutrientsPerPrimaryServing,
+      servingSizes: input.servingSizes,
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    })
+
+    const summary: ExternalFoodSummary = {
+      id: food.id,
+      barcode: food.barcode,
+      name: food.name,
+      brand: food.brand,
+      servingLabel: nutrition.servingLabel,
+      caloriesPerServing: nutrition.nutrients["calories"] ?? null,
+      proteinPerServing: nutrition.nutrients["protein"] ?? null,
+      carbsPerServing: nutrition.nutrients["carbs"] ?? null,
+      fatPerServing: nutrition.nutrients["fat"] ?? null,
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    }
+
+    const snapshotId = await createFoodSnapshot(food.id, summary, nutrition, tx)
+
+    return {
+      foodId: food.id,
+      snapshotId,
+      summary,
+      nutrition,
+      item: toCustomFoodSearchItem(food, nutrition),
+    }
+  })
+}
+
+export async function softDeleteCustomFood(userId: string, foodId: string) {
+  const now = new Date()
+  const [deleted] = await db
+    .update(userCustomFoods)
+    .set({ deletedAt: now, updatedAt: now })
+    .where(
+      and(
+        eq(userCustomFoods.userId, userId),
+        eq(userCustomFoods.foodId, foodId),
+        isNull(userCustomFoods.deletedAt)
+      )
+    )
+    .returning({ foodId: userCustomFoods.foodId })
+
+  if (!deleted) {
+    return false
+  }
+
+  await db
+    .update(foods)
+    .set({ deletedAt: now, updatedAt: now })
+    .where(and(eq(foods.id, foodId), eq(foods.ownerUserId, userId)))
+
+  return true
 }
 
 export async function searchUserCustomFoods(
