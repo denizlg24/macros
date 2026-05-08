@@ -22,6 +22,7 @@ import {
   setTodayNutritionTotals,
   useDailyCalorieSummary,
 } from "@/lib/app-cache/api"
+import { foodLogQueryKeys } from "@/lib/app-cache/food-log-keys"
 import { queryKeys } from "@/lib/app-cache/query-keys"
 import {
   foodSearchItemSchema,
@@ -40,6 +41,7 @@ import {
   removeOptimisticNutritionEntries,
 } from "@/lib/optimistic-nutrition"
 import type { DailyCalorieSummary } from "@/lib/queries/calorie-summary"
+import type { FoodLogDayPayload } from "@/lib/queries/food-log-day"
 import { cn } from "@/lib/utils"
 import {
   dateFromIsoDate,
@@ -597,13 +599,51 @@ function ScanLogic({
       setExtraConsumed((current) => current + optimisticToday)
 
       for (const food of foodsToLog) {
-        if (food.input.logDate !== calorieSummary.today) continue
+        const foodLogDate = food.input.logDate ?? calorieSummary.today
+        if (foodLogDate === calorieSummary.today) {
+          addOptimisticNutritionEntry({
+            id: food.uid,
+            logDate: calorieSummary.today,
+            macros: food.macros,
+          })
+        }
 
-        addOptimisticNutritionEntry({
-          id: food.uid,
-          logDate: calorieSummary.today,
-          macros: food.macros,
-        })
+        queryClient.setQueryData<FoodLogDayPayload | undefined>(
+          foodLogQueryKeys.day(foodLogDate),
+          (prev) => {
+            if (!prev) return prev
+            const fakeEntry: FoodLogDayPayload["entries"][number] = {
+              id: food.uid,
+              logDate: foodLogDate,
+              eatenAt: food.input.eatenAt ?? null,
+              mealType: food.input.mealType ?? "snack",
+              entryType: "food",
+              foodId: food.input.sourceItemId,
+              recipeId: null,
+              foodName: food.food.name,
+              brand: food.food.brand ?? null,
+              servingLabel: food.food.servingLabel ?? null,
+              servingQuantity: 1,
+              servingUnit: "serving",
+              servingsConsumed: food.input.servingsConsumed,
+              notes: null,
+              calories: food.macros.calories,
+              protein: food.macros.protein,
+              carbs: food.macros.carbs,
+              fat: food.macros.fat,
+            }
+            return {
+              ...prev,
+              entries: [...prev.entries, fakeEntry],
+              totals: {
+                calories: prev.totals.calories + food.macros.calories,
+                protein: prev.totals.protein + food.macros.protein,
+                carbs: prev.totals.carbs + food.macros.carbs,
+                fat: prev.totals.fat + food.macros.fat,
+              },
+            }
+          }
+        )
       }
 
       router.push("/app")
@@ -653,6 +693,20 @@ function ScanLogic({
         })
         void queryClient.invalidateQueries({
           queryKey: queryKeys.foodHistory(20),
+        })
+        const touchedDates = new Set(
+          foodsToLog.map((food) => food.input.logDate ?? calorieSummary.today)
+        )
+        for (const date of touchedDates) {
+          void queryClient.invalidateQueries({
+            queryKey: foodLogQueryKeys.day(date),
+          })
+        }
+        void queryClient.invalidateQueries({
+          queryKey: ["food-log", "week-totals"],
+        })
+        void queryClient.invalidateQueries({
+          queryKey: ["food-log", "overview"],
         })
       }
     } finally {
