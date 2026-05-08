@@ -76,6 +76,20 @@ const SCAN_FORMATS = [
   "itf",
 ] as const
 
+const CAMERA_STREAM_RELEASE_DELAY_MS = 30_000
+const CAMERA_ALLOWED_STORAGE_KEY = "macros.scan.cameraAllowed"
+const CAMERA_CONSTRAINTS = {
+  audio: false,
+  video: {
+    facingMode: { ideal: "environment" },
+    width: { ideal: 1280 },
+    height: { ideal: 720 },
+  },
+} as const satisfies MediaStreamConstraints
+
+let retainedCameraStream: MediaStream | null = null
+let retainedCameraReleaseTimeout: number | null = null
+
 interface DetectedBarcodeResult {
   rawValue: string
   format: string
@@ -171,6 +185,53 @@ async function getNativeBarcodeDetector(): Promise<BarcodeDetectorConstructor | 
   }
 
   return null
+}
+
+function hasLiveVideoTrack(stream: MediaStream) {
+  return stream.getVideoTracks().some((track) => track.readyState === "live")
+}
+
+function stopStream(stream: MediaStream) {
+  stream.getTracks().forEach((track) => track.stop())
+}
+
+async function getRetainedCameraStream() {
+  if (retainedCameraReleaseTimeout != null) {
+    window.clearTimeout(retainedCameraReleaseTimeout)
+    retainedCameraReleaseTimeout = null
+  }
+
+  if (retainedCameraStream && hasLiveVideoTrack(retainedCameraStream)) {
+    return retainedCameraStream
+  }
+
+  retainedCameraStream =
+    await navigator.mediaDevices.getUserMedia(CAMERA_CONSTRAINTS)
+  try {
+    window.localStorage.setItem(CAMERA_ALLOWED_STORAGE_KEY, "true")
+  } catch {
+    // Camera reuse still works for the active session if storage is unavailable.
+  }
+  return retainedCameraStream
+}
+
+function releaseRetainedCameraStream(stream: MediaStream) {
+  if (stream !== retainedCameraStream) {
+    stopStream(stream)
+    return
+  }
+
+  if (retainedCameraReleaseTimeout != null) {
+    window.clearTimeout(retainedCameraReleaseTimeout)
+  }
+
+  retainedCameraReleaseTimeout = window.setTimeout(() => {
+    if (retainedCameraStream === stream) {
+      stopStream(stream)
+      retainedCameraStream = null
+    }
+    retainedCameraReleaseTimeout = null
+  }, CAMERA_STREAM_RELEASE_DELAY_MS)
 }
 
 function ScanFallback() {
@@ -341,7 +402,12 @@ function ScanLogic({
     }
     zxingControlsRef.current?.stop()
     zxingControlsRef.current = null
-    streamRef.current?.getTracks().forEach((track) => track.stop())
+    if (videoRef.current) {
+      videoRef.current.srcObject = null
+    }
+    if (streamRef.current) {
+      releaseRetainedCameraStream(streamRef.current)
+    }
     streamRef.current = null
   }, [])
 
@@ -438,21 +504,23 @@ function ScanLogic({
         }
 
         const Detector = await getNativeBarcodeDetector()
+        const stream = await getRetainedCameraStream()
+        if (cancelled) {
+          releaseRetainedCameraStream(stream)
+          return
+        }
+
+        streamRef.current = stream
 
         if (!Detector) {
           const video = videoRef.current
           if (!video) return
+          video.srcObject = stream
+          await video.play()
+
           const { BrowserMultiFormatReader } = await import("@zxing/browser")
           const reader = new BrowserMultiFormatReader()
-          const controls = await reader.decodeFromConstraints(
-            {
-              audio: false,
-              video: {
-                facingMode: { ideal: "environment" },
-                width: { ideal: 1280 },
-                height: { ideal: 720 },
-              },
-            },
+          const controls = await reader.decodeFromVideoElement(
             video,
             (result) => {
               const text = result?.getText().trim()
@@ -471,20 +539,6 @@ function ScanLogic({
           return
         }
 
-        const stream = await navigator.mediaDevices.getUserMedia({
-          audio: false,
-          video: {
-            facingMode: { ideal: "environment" },
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-          },
-        })
-        if (cancelled) {
-          stream.getTracks().forEach((track) => track.stop())
-          return
-        }
-
-        streamRef.current = stream
         const video = videoRef.current
         if (!video) return
         video.srcObject = stream
