@@ -1,9 +1,7 @@
 "use client"
 
-import { useQueryClient } from "@tanstack/react-query"
 import type { IScannerControls } from "@zxing/browser"
 import { Barcode, CameraOff, LoaderCircle, Plus, RotateCcw } from "lucide-react"
-import { useRouter } from "next/navigation"
 import {
   type RefObject,
   useCallback,
@@ -12,33 +10,19 @@ import {
   useRef,
   useState,
 } from "react"
-import { toast } from "sonner"
 import { z } from "zod"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useHydrated } from "@/hooks/use-hydrated"
-import {
-  setTodayNutritionTotals,
-  useDailyCalorieSummary,
-} from "@/lib/app-cache/api"
-import { queryKeys } from "@/lib/app-cache/query-keys"
-import {
-  foodSearchItemSchema,
-  type LogFoodInput,
-  logFoodResponseSchema,
-} from "@/lib/foods/contracts"
+import { useDailyCalorieSummary } from "@/lib/app-cache/api"
+import { foodSearchItemSchema, type LogFoodInput } from "@/lib/foods/contracts"
 import {
   readPendingFoods,
   subscribeToPendingFoods,
   writePendingFoods,
 } from "@/lib/foods/pending-foods"
-import {
-  addOptimisticNutritionEntry,
-  type OptimisticDailyMacros,
-  putConfirmedNutritionTotals,
-  removeOptimisticNutritionEntries,
-} from "@/lib/optimistic-nutrition"
+import type { OptimisticDailyMacros } from "@/lib/optimistic-nutrition"
 import type { DailyCalorieSummary } from "@/lib/queries/calorie-summary"
 import { cn } from "@/lib/utils"
 import {
@@ -51,12 +35,12 @@ import {
   NavTabs,
   type PendingFood,
   PendingFoodsSheet,
-  saveFailedPendingFoods,
 } from "../../add/_components/add-food-shared"
 import {
   FoodDetailDrawer,
   type FoodSummary,
 } from "../../add/_components/food-detail-drawer"
+import { useLogPendingFoods } from "../../add/_components/use-log-pending-foods"
 import { CreateFoodDrawer } from "./create-food-drawer"
 
 const barcodeLookupResponseSchema = z.object({
@@ -73,6 +57,20 @@ const SCAN_FORMATS = [
   "code_39",
   "itf",
 ] as const
+
+const CAMERA_STREAM_RELEASE_DELAY_MS = 30_000
+const CAMERA_ALLOWED_STORAGE_KEY = "macros.scan.cameraAllowed"
+const CAMERA_CONSTRAINTS = {
+  audio: false,
+  video: {
+    facingMode: { ideal: "environment" },
+    width: { ideal: 1280 },
+    height: { ideal: 720 },
+  },
+} as const satisfies MediaStreamConstraints
+
+let retainedCameraStream: MediaStream | null = null
+let retainedCameraReleaseTimeout: number | null = null
 
 interface DetectedBarcodeResult {
   rawValue: string
@@ -120,16 +118,6 @@ async function readJsonResponse(response: Response) {
   return body
 }
 
-async function postFoodLog(input: LogFoodInput) {
-  const response = await fetch("/api/food-log/entries", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(input),
-  })
-
-  return logFoodResponseSchema.parse(await readJsonResponse(response))
-}
-
 function getCameraUnavailableMessage(error?: unknown) {
   if (!window.isSecureContext) {
     return "Camera access requires HTTPS on iPhone. Open the app from a secure URL and try again."
@@ -169,6 +157,53 @@ async function getNativeBarcodeDetector(): Promise<BarcodeDetectorConstructor | 
   }
 
   return null
+}
+
+function hasLiveVideoTrack(stream: MediaStream) {
+  return stream.getVideoTracks().some((track) => track.readyState === "live")
+}
+
+function stopStream(stream: MediaStream) {
+  stream.getTracks().forEach((track) => track.stop())
+}
+
+async function getRetainedCameraStream() {
+  if (retainedCameraReleaseTimeout != null) {
+    window.clearTimeout(retainedCameraReleaseTimeout)
+    retainedCameraReleaseTimeout = null
+  }
+
+  if (retainedCameraStream && hasLiveVideoTrack(retainedCameraStream)) {
+    return retainedCameraStream
+  }
+
+  retainedCameraStream =
+    await navigator.mediaDevices.getUserMedia(CAMERA_CONSTRAINTS)
+  try {
+    window.localStorage.setItem(CAMERA_ALLOWED_STORAGE_KEY, "true")
+  } catch {
+    // Camera reuse still works for the active session if storage is unavailable.
+  }
+  return retainedCameraStream
+}
+
+function releaseRetainedCameraStream(stream: MediaStream) {
+  if (stream !== retainedCameraStream) {
+    stopStream(stream)
+    return
+  }
+
+  if (retainedCameraReleaseTimeout != null) {
+    window.clearTimeout(retainedCameraReleaseTimeout)
+  }
+
+  retainedCameraReleaseTimeout = window.setTimeout(() => {
+    if (retainedCameraStream === stream) {
+      stopStream(stream)
+      retainedCameraStream = null
+    }
+    retainedCameraReleaseTimeout = null
+  }, CAMERA_STREAM_RELEASE_DELAY_MS)
 }
 
 function ScanFallback() {
@@ -288,8 +323,6 @@ function ScanLogic({
 }: {
   calorieSummary: DailyCalorieSummary
 }) {
-  const router = useRouter()
-  const queryClient = useQueryClient()
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const zxingControlsRef = useRef<IScannerControls | null>(null)
@@ -306,9 +339,6 @@ function ScanLogic({
   const [pendingFoods, setPendingFoods] = useState<PendingFood[]>([])
   const [pendingSheetOpen, setPendingSheetOpen] = useState(false)
   const [extraConsumed, setExtraConsumed] = useState(0)
-  const [isCommitting, setIsCommitting] = useState(false)
-  const commitInFlightRef = useRef(false)
-  const mountedRef = useRef(false)
   const [selectedDate, setSelectedDate] = useState(() =>
     dateFromIsoDate(calorieSummary.today)
   )
@@ -339,7 +369,12 @@ function ScanLogic({
     }
     zxingControlsRef.current?.stop()
     zxingControlsRef.current = null
-    streamRef.current?.getTracks().forEach((track) => track.stop())
+    if (videoRef.current) {
+      videoRef.current.srcObject = null
+    }
+    if (streamRef.current) {
+      releaseRetainedCameraStream(streamRef.current)
+    }
     streamRef.current = null
   }, [])
 
@@ -383,7 +418,6 @@ function ScanLogic({
 
   useEffect(() => {
     document.documentElement.classList.add("macros-add-food-scroll-lock")
-    mountedRef.current = true
     const storedFoods = readPendingFoods()
     if (storedFoods.length > 0) {
       setPendingFoods(storedFoods)
@@ -391,7 +425,6 @@ function ScanLogic({
     const unsubscribe = subscribeToPendingFoods(setPendingFoods)
 
     return () => {
-      mountedRef.current = false
       unsubscribe()
       document.documentElement.classList.remove("macros-add-food-scroll-lock")
     }
@@ -436,21 +469,23 @@ function ScanLogic({
         }
 
         const Detector = await getNativeBarcodeDetector()
+        const stream = await getRetainedCameraStream()
+        if (cancelled) {
+          releaseRetainedCameraStream(stream)
+          return
+        }
+
+        streamRef.current = stream
 
         if (!Detector) {
           const video = videoRef.current
           if (!video) return
+          video.srcObject = stream
+          await video.play()
+
           const { BrowserMultiFormatReader } = await import("@zxing/browser")
           const reader = new BrowserMultiFormatReader()
-          const controls = await reader.decodeFromConstraints(
-            {
-              audio: false,
-              video: {
-                facingMode: { ideal: "environment" },
-                width: { ideal: 1280 },
-                height: { ideal: 720 },
-              },
-            },
+          const controls = await reader.decodeFromVideoElement(
             video,
             (result) => {
               const text = result?.getText().trim()
@@ -469,20 +504,6 @@ function ScanLogic({
           return
         }
 
-        const stream = await navigator.mediaDevices.getUserMedia({
-          audio: false,
-          video: {
-            facingMode: { ideal: "environment" },
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-          },
-        })
-        if (cancelled) {
-          stream.getTracks().forEach((track) => track.stop())
-          return
-        }
-
-        streamRef.current = stream
         const video = videoRef.current
         if (!video) return
         video.srcObject = stream
@@ -579,89 +600,13 @@ function ScanLogic({
     })
   }, [])
 
-  const logAllPending = useCallback(async () => {
-    if (pendingFoods.length === 0 || commitInFlightRef.current) return
-
-    commitInFlightRef.current = true
-    setIsCommitting(true)
-
-    try {
-      const foodsToLog = pendingFoods
-      const optimisticToday = foodsToLog
-        .filter((food) => food.input.logDate === calorieSummary.today)
-        .reduce((sum, food) => sum + getPendingCalories(food), 0)
-
-      setPendingFoods([])
-      writePendingFoods([])
-      setPendingSheetOpen(false)
-      setExtraConsumed((current) => current + optimisticToday)
-
-      for (const food of foodsToLog) {
-        if (food.input.logDate !== calorieSummary.today) continue
-
-        addOptimisticNutritionEntry({
-          id: food.uid,
-          logDate: calorieSummary.today,
-          macros: food.macros,
-        })
-      }
-
-      router.push("/app")
-
-      const failedFoods: PendingFood[] = []
-      let succeededCount = 0
-
-      for (const food of foodsToLog) {
-        const result = await postFoodLog(food.input).catch(() => null)
-
-        if (!result) {
-          failedFoods.push(food)
-          continue
-        }
-
-        succeededCount += 1
-        removeOptimisticNutritionEntries([
-          result.entry.clientMutationId ?? food.uid,
-        ])
-
-        if (result.entry.logDate === calorieSummary.today) {
-          putConfirmedNutritionTotals(result.entry.logDate, result.totals)
-          setTodayNutritionTotals(
-            queryClient,
-            result.entry.logDate,
-            result.totals
-          )
-        }
-      }
-
-      removeOptimisticNutritionEntries(failedFoods.map((food) => food.uid))
-
-      if (failedFoods.length > 0) {
-        saveFailedPendingFoods(failedFoods)
-        toast.error("Some foods were not logged", {
-          action: {
-            label: "Retry",
-            onClick: () => router.push("/app/add?retry=failed"),
-          },
-        })
-      }
-
-      if (succeededCount > 0) {
-        void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard })
-        void queryClient.invalidateQueries({
-          queryKey: queryKeys.calorieSummary,
-        })
-        void queryClient.invalidateQueries({
-          queryKey: queryKeys.foodHistory(20),
-        })
-      }
-    } finally {
-      commitInFlightRef.current = false
-      if (mountedRef.current) {
-        setIsCommitting(false)
-      }
-    }
-  }, [pendingFoods, calorieSummary.today, queryClient, router])
+  const { isCommitting, logAllPending } = useLogPendingFoods({
+    pendingFoods,
+    setPendingFoods,
+    setPendingSheetOpen,
+    setExtraConsumed,
+    today: calorieSummary.today,
+  })
 
   const handleStage = useCallback(
     async (input: LogFoodInput, macros: OptimisticDailyMacros) => {

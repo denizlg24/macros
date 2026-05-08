@@ -1172,6 +1172,31 @@ export function AddFoodLogic({
   const containerRef = useRef<HTMLDivElement | null>(null)
   const routeFocusHandledRef = useRef(false)
 
+  const focusSearchInput = useCallback(() => {
+    let frame: number | null = null
+    const timeouts: number[] = []
+
+    const focus = () => {
+      const input = inputRef.current
+      if (!input) return
+      input.focus({ preventScroll: true })
+    }
+
+    frame = window.requestAnimationFrame(focus)
+    timeouts.push(window.setTimeout(focus, 75))
+    timeouts.push(window.setTimeout(focus, 250))
+    timeouts.push(window.setTimeout(focus, 500))
+
+    return () => {
+      if (frame != null) {
+        window.cancelAnimationFrame(frame)
+      }
+      for (const timeout of timeouts) {
+        window.clearTimeout(timeout)
+      }
+    }
+  }, [])
+
   useEffect(() => {
     document.documentElement.classList.add("macros-add-food-scroll-lock")
 
@@ -1251,12 +1276,8 @@ export function AddFoodLogic({
     }
 
     routeFocusHandledRef.current = true
-    const handle = window.requestAnimationFrame(() => {
-      inputRef.current?.focus({ preventScroll: true })
-    })
-
-    return () => window.cancelAnimationFrame(handle)
-  }, [searchParams])
+    return focusSearchInput()
+  }, [focusSearchInput, searchParams])
 
   const onChange = (e: ChangeEvent<HTMLInputElement>) =>
     setDraft(e.target.value)
@@ -1675,6 +1696,7 @@ export function AddFoodLogic({
               placeholder="Search for a food"
               className="h-11 rounded-full bg-muted pl-9 pr-3 text-base"
               enterKeyHint="search"
+              autoFocus={searchParams.get("focus") === "search"}
               autoComplete="off"
               inputMode="search"
             />

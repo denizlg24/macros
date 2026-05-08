@@ -150,6 +150,11 @@ export const createFoodBodySchema = z.object({
     }),
 })
 
+export const updateFoodBodySchema = createFoodBodySchema.omit({
+  clientMutationId: true,
+  barcode: true,
+})
+
 export const mealTypeSchema = z.enum(["breakfast", "lunch", "dinner", "snack"])
 
 export const foodSearchItemSchema = z.object({
@@ -211,6 +216,14 @@ export const createFoodResponseSchema = z.object({
   fetchedAt: z.string(),
 })
 
+export const foodMutationResponseSchema = z.object({
+  item: foodSearchItemSchema,
+  nutrition: externalFoodNutritionSchema.optional(),
+  localFoodId: z.uuid().optional(),
+  snapshotId: z.uuid().optional(),
+  fetchedAt: z.string(),
+})
+
 export const userCustomFoodsResponseSchema = z.object({
   items: z.array(foodSearchItemSchema),
   fetchedAt: z.string(),
@@ -268,4 +281,5 @@ export type FoodSearchParams = z.infer<typeof foodSearchParamsSchema>
 export type ExternalFoodSummary = z.infer<typeof externalFoodSummarySchema>
 export type ExternalFoodNutrition = z.infer<typeof externalFoodNutritionSchema>
 export type CreateFoodInput = z.infer<typeof createFoodBodySchema>
+export type UpdateFoodInput = z.infer<typeof updateFoodBodySchema>
 export type LogFoodInput = z.infer<typeof logFoodBodySchema>
