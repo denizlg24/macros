@@ -14,6 +14,10 @@ import { toNutritionSourceErrorResponse } from "../_lib/source-error-response"
 
 const paramsSchema = z.object({ id: z.uuid() })
 
+function toErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error)
+}
+
 export async function GET(
   _request: Request,
   context: { params: Promise<{ id: string }> }
@@ -88,11 +92,16 @@ export async function PATCH(
     )
   }
 
-  const result = await updateCustomFood(
-    session.user.id,
-    parsedParams.data.id,
-    parsedBody.data
-  )
+  let result: Awaited<ReturnType<typeof updateCustomFood>>
+  try {
+    result = await updateCustomFood(
+      session.user.id,
+      parsedParams.data.id,
+      parsedBody.data
+    )
+  } catch (error) {
+    return NextResponse.json({ error: toErrorMessage(error) }, { status: 500 })
+  }
 
   if (!result) {
     return NextResponse.json({ error: "Food not found" }, { status: 404 })
@@ -123,7 +132,12 @@ export async function DELETE(
     return NextResponse.json({ error: "Invalid food id" }, { status: 400 })
   }
 
-  const deleted = await softDeleteCustomFood(session.user.id, parsed.data.id)
+  let deleted: Awaited<ReturnType<typeof softDeleteCustomFood>>
+  try {
+    deleted = await softDeleteCustomFood(session.user.id, parsed.data.id)
+  } catch (error) {
+    return NextResponse.json({ error: toErrorMessage(error) }, { status: 500 })
+  }
 
   if (!deleted) {
     return NextResponse.json({ error: "Food not found" }, { status: 404 })

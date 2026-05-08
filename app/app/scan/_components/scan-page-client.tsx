@@ -1,9 +1,7 @@
 "use client"
 
-import { useQueryClient } from "@tanstack/react-query"
 import type { IScannerControls } from "@zxing/browser"
 import { Barcode, CameraOff, LoaderCircle, Plus, RotateCcw } from "lucide-react"
-import { useRouter } from "next/navigation"
 import {
   type RefObject,
   useCallback,
@@ -12,36 +10,20 @@ import {
   useRef,
   useState,
 } from "react"
-import { toast } from "sonner"
 import { z } from "zod"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useHydrated } from "@/hooks/use-hydrated"
-import {
-  setTodayNutritionTotals,
-  useDailyCalorieSummary,
-} from "@/lib/app-cache/api"
-import { foodLogQueryKeys } from "@/lib/app-cache/food-log-keys"
-import { queryKeys } from "@/lib/app-cache/query-keys"
-import {
-  foodSearchItemSchema,
-  type LogFoodInput,
-  logFoodResponseSchema,
-} from "@/lib/foods/contracts"
+import { useDailyCalorieSummary } from "@/lib/app-cache/api"
+import { foodSearchItemSchema, type LogFoodInput } from "@/lib/foods/contracts"
 import {
   readPendingFoods,
   subscribeToPendingFoods,
   writePendingFoods,
 } from "@/lib/foods/pending-foods"
-import {
-  addOptimisticNutritionEntry,
-  type OptimisticDailyMacros,
-  putConfirmedNutritionTotals,
-  removeOptimisticNutritionEntries,
-} from "@/lib/optimistic-nutrition"
+import type { OptimisticDailyMacros } from "@/lib/optimistic-nutrition"
 import type { DailyCalorieSummary } from "@/lib/queries/calorie-summary"
-import type { FoodLogDayPayload } from "@/lib/queries/food-log-day"
 import { cn } from "@/lib/utils"
 import {
   dateFromIsoDate,
@@ -53,12 +35,12 @@ import {
   NavTabs,
   type PendingFood,
   PendingFoodsSheet,
-  saveFailedPendingFoods,
 } from "../../add/_components/add-food-shared"
 import {
   FoodDetailDrawer,
   type FoodSummary,
 } from "../../add/_components/food-detail-drawer"
+import { useLogPendingFoods } from "../../add/_components/use-log-pending-foods"
 import { CreateFoodDrawer } from "./create-food-drawer"
 
 const barcodeLookupResponseSchema = z.object({
@@ -134,16 +116,6 @@ async function readJsonResponse(response: Response) {
 
   const body: unknown = await response.json()
   return body
-}
-
-async function postFoodLog(input: LogFoodInput) {
-  const response = await fetch("/api/food-log/entries", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(input),
-  })
-
-  return logFoodResponseSchema.parse(await readJsonResponse(response))
 }
 
 function getCameraUnavailableMessage(error?: unknown) {
@@ -351,8 +323,6 @@ function ScanLogic({
 }: {
   calorieSummary: DailyCalorieSummary
 }) {
-  const router = useRouter()
-  const queryClient = useQueryClient()
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const zxingControlsRef = useRef<IScannerControls | null>(null)
@@ -369,9 +339,6 @@ function ScanLogic({
   const [pendingFoods, setPendingFoods] = useState<PendingFood[]>([])
   const [pendingSheetOpen, setPendingSheetOpen] = useState(false)
   const [extraConsumed, setExtraConsumed] = useState(0)
-  const [isCommitting, setIsCommitting] = useState(false)
-  const commitInFlightRef = useRef(false)
-  const mountedRef = useRef(false)
   const [selectedDate, setSelectedDate] = useState(() =>
     dateFromIsoDate(calorieSummary.today)
   )
@@ -451,7 +418,6 @@ function ScanLogic({
 
   useEffect(() => {
     document.documentElement.classList.add("macros-add-food-scroll-lock")
-    mountedRef.current = true
     const storedFoods = readPendingFoods()
     if (storedFoods.length > 0) {
       setPendingFoods(storedFoods)
@@ -459,7 +425,6 @@ function ScanLogic({
     const unsubscribe = subscribeToPendingFoods(setPendingFoods)
 
     return () => {
-      mountedRef.current = false
       unsubscribe()
       document.documentElement.classList.remove("macros-add-food-scroll-lock")
     }
@@ -635,141 +600,13 @@ function ScanLogic({
     })
   }, [])
 
-  const logAllPending = useCallback(async () => {
-    if (pendingFoods.length === 0 || commitInFlightRef.current) return
-
-    commitInFlightRef.current = true
-    setIsCommitting(true)
-
-    try {
-      const foodsToLog = pendingFoods
-      const optimisticToday = foodsToLog
-        .filter((food) => food.input.logDate === calorieSummary.today)
-        .reduce((sum, food) => sum + getPendingCalories(food), 0)
-
-      setPendingFoods([])
-      writePendingFoods([])
-      setPendingSheetOpen(false)
-      setExtraConsumed((current) => current + optimisticToday)
-
-      for (const food of foodsToLog) {
-        const foodLogDate = food.input.logDate ?? calorieSummary.today
-        if (foodLogDate === calorieSummary.today) {
-          addOptimisticNutritionEntry({
-            id: food.uid,
-            logDate: calorieSummary.today,
-            macros: food.macros,
-          })
-        }
-
-        queryClient.setQueryData<FoodLogDayPayload | undefined>(
-          foodLogQueryKeys.day(foodLogDate),
-          (prev) => {
-            if (!prev) return prev
-            const fakeEntry: FoodLogDayPayload["entries"][number] = {
-              id: food.uid,
-              logDate: foodLogDate,
-              eatenAt: food.input.eatenAt ?? null,
-              mealType: food.input.mealType ?? "snack",
-              entryType: "food",
-              foodId: food.input.sourceItemId,
-              recipeId: null,
-              foodName: food.food.name,
-              brand: food.food.brand ?? null,
-              servingLabel: food.food.servingLabel ?? null,
-              servingQuantity: 1,
-              servingUnit: "serving",
-              servingsConsumed: food.input.servingsConsumed,
-              notes: null,
-              calories: food.macros.calories,
-              protein: food.macros.protein,
-              carbs: food.macros.carbs,
-              fat: food.macros.fat,
-            }
-            return {
-              ...prev,
-              entries: [...prev.entries, fakeEntry],
-              totals: {
-                calories: prev.totals.calories + food.macros.calories,
-                protein: prev.totals.protein + food.macros.protein,
-                carbs: prev.totals.carbs + food.macros.carbs,
-                fat: prev.totals.fat + food.macros.fat,
-              },
-            }
-          }
-        )
-      }
-
-      router.push("/app")
-
-      const failedFoods: PendingFood[] = []
-      let succeededCount = 0
-
-      for (const food of foodsToLog) {
-        const result = await postFoodLog(food.input).catch(() => null)
-
-        if (!result) {
-          failedFoods.push(food)
-          continue
-        }
-
-        succeededCount += 1
-        removeOptimisticNutritionEntries([
-          result.entry.clientMutationId ?? food.uid,
-        ])
-
-        if (result.entry.logDate === calorieSummary.today) {
-          putConfirmedNutritionTotals(result.entry.logDate, result.totals)
-          setTodayNutritionTotals(
-            queryClient,
-            result.entry.logDate,
-            result.totals
-          )
-        }
-      }
-
-      removeOptimisticNutritionEntries(failedFoods.map((food) => food.uid))
-
-      if (failedFoods.length > 0) {
-        saveFailedPendingFoods(failedFoods)
-        toast.error("Some foods were not logged", {
-          action: {
-            label: "Retry",
-            onClick: () => router.push("/app/add?retry=failed"),
-          },
-        })
-      }
-
-      if (succeededCount > 0) {
-        void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard })
-        void queryClient.invalidateQueries({
-          queryKey: queryKeys.calorieSummary,
-        })
-        void queryClient.invalidateQueries({
-          queryKey: queryKeys.foodHistory(20),
-        })
-        const touchedDates = new Set(
-          foodsToLog.map((food) => food.input.logDate ?? calorieSummary.today)
-        )
-        for (const date of touchedDates) {
-          void queryClient.invalidateQueries({
-            queryKey: foodLogQueryKeys.day(date),
-          })
-        }
-        void queryClient.invalidateQueries({
-          queryKey: ["food-log", "week-totals"],
-        })
-        void queryClient.invalidateQueries({
-          queryKey: ["food-log", "overview"],
-        })
-      }
-    } finally {
-      commitInFlightRef.current = false
-      if (mountedRef.current) {
-        setIsCommitting(false)
-      }
-    }
-  }, [pendingFoods, calorieSummary.today, queryClient, router])
+  const { isCommitting, logAllPending } = useLogPendingFoods({
+    pendingFoods,
+    setPendingFoods,
+    setPendingSheetOpen,
+    setExtraConsumed,
+    today: calorieSummary.today,
+  })
 
   const handleStage = useCallback(
     async (input: LogFoodInput, macros: OptimisticDailyMacros) => {
