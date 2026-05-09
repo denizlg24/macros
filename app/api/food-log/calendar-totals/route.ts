@@ -18,7 +18,8 @@ const querySchema = z
       const endDate = new Date(data.end)
       const diffMs = endDate.getTime() - startDate.getTime()
       const diffDays = diffMs / (1000 * 60 * 60 * 24)
-      return diffDays <= 370
+      const dayCount = Math.floor(diffDays) + 1
+      return dayCount <= 370
     },
     {
       message: "date range cannot exceed 370 days",

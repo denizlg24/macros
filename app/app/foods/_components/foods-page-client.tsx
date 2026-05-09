@@ -549,14 +549,21 @@ function FoodsLogic({
   )
   const eatenAt = useMemo(() => {
     const d = new Date(selectedDate)
-    const now = new Date()
+    const nowInTz = new Date()
+    const nowHourInTz = getHourInTimezone(nowInTz, calorieSummary.timezone)
+    const nowDateInTz = dateFromIsoDate(
+      new Intl.DateTimeFormat("en-CA", {
+        timeZone: calorieSummary.timezone,
+      }).format(nowInTz)
+    )
     const minute =
-      d.toDateString() === now.toDateString() && selectedHour === now.getHours()
-        ? Math.floor(now.getMinutes() / 15) * 15
+      d.toDateString() === nowDateInTz.toDateString() &&
+      selectedHour === nowHourInTz
+        ? Math.floor(nowInTz.getMinutes() / 15) * 15
         : 0
     d.setHours(selectedHour, minute, 0, 0)
     return d.toISOString()
-  }, [selectedDate, selectedHour])
+  }, [selectedDate, selectedHour, calorieSummary.timezone])
   const logDate = useMemo(() => toIsoDate(selectedDate), [selectedDate])
 
   const loadFoods = useCallback(async () => {

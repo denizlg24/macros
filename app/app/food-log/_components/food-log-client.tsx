@@ -51,14 +51,26 @@ async function fetchWeekTotals(
   return res.json() as Promise<WeekTotalsPayload>
 }
 
+function isValidIsoDate(dateStr: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return false
+  const [yearStr, monthStr, dayStr] = dateStr.split("-")
+  const year = Number(yearStr)
+  const month = Number(monthStr)
+  const day = Number(dayStr)
+  const date = new Date(year, month - 1, day)
+  return (
+    date.getFullYear() === year &&
+    date.getMonth() === month - 1 &&
+    date.getDate() === day
+  )
+}
+
 export function FoodLogClient() {
   const hydrated = useHydrated()
   const searchParams = useSearchParams()
   const initialDate = searchParams.get("date")
   const [selectedDate, setSelectedDate] = useState<string>(() =>
-    initialDate && /^\d{4}-\d{2}-\d{2}$/.test(initialDate)
-      ? initialDate
-      : todayIso()
+    initialDate && isValidIsoDate(initialDate) ? initialDate : todayIso()
   )
   const queryClient = useQueryClient()
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
