@@ -622,6 +622,13 @@ function FoodsLogic({
     [foods, query]
   )
 
+  const openCreateFood = useCallback(() => {
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur()
+    }
+    setCreateFoodOpen(true)
+  }, [])
+
   const quickAddToPending = useCallback(
     (item: FoodSearchItem, servingsConsumed: number) => {
       const clientMutationId = crypto.randomUUID()
@@ -752,7 +759,8 @@ function FoodsLogic({
           </div>
           <Button
             type="button"
-            onClick={() => setCreateFoodOpen(true)}
+            onPointerDown={openCreateFood}
+            onClick={openCreateFood}
             className="size-11 shrink-0 rounded-full bg-foreground p-0 text-background hover:bg-foreground/90"
             aria-label="Create food"
           >
