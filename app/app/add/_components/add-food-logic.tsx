@@ -1592,7 +1592,7 @@ export function AddFoodLogic({
           }}
           pendingCount={pendingFoods.length}
           pendingCalories={pendingCalories}
-          onViewPending={() => setPendingSheetOpen(true)}
+          onViewPending={() => router.push("/app/plate")}
         />
         <NavTabs />
       </div>

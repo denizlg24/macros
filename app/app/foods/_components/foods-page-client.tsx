@@ -10,6 +10,7 @@ import {
   Search,
   Trash2,
 } from "lucide-react"
+import { useRouter } from "next/navigation"
 import {
   type ChangeEvent,
   useCallback,
@@ -520,6 +521,7 @@ function FoodsLogic({
 }: {
   calorieSummary: DailyCalorieSummary
 }) {
+  const router = useRouter()
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [foods, setFoods] = useState<FoodSearchItem[]>([])
   const [query, setQuery] = useState("")
@@ -736,7 +738,7 @@ function FoodsLogic({
           }}
           pendingCount={pendingFoods.length}
           pendingCalories={pendingCalories}
-          onViewPending={() => setPendingSheetOpen(true)}
+          onViewPending={() => router.push("/app/plate")}
         />
         <NavTabs />
       </div>
