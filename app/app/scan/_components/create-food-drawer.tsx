@@ -43,6 +43,7 @@ interface ServingDraft {
 interface CreateFoodDrawerProps {
   open: boolean
   barcode: string | null
+  autoFocusName?: boolean
   onClose: () => void
   onCreated: (food: FoodSummary) => void
 }
@@ -72,6 +73,7 @@ function buildDefaultDrafts(): Record<string, string> {
 export function CreateFoodDrawer({
   open,
   barcode,
+  autoFocusName = true,
   onClose,
   onCreated,
 }: CreateFoodDrawerProps) {
@@ -313,7 +315,7 @@ export function CreateFoodDrawer({
                   value={name}
                   onChange={(event) => setName(event.target.value)}
                   autoComplete="off"
-                  autoFocus
+                  autoFocus={autoFocusName}
                 />
               </div>
               <div className="space-y-1.5">

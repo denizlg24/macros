@@ -1,5 +1,6 @@
 "use client"
 
+import { VisuallyHidden } from "@radix-ui/react-visually-hidden"
 import { useQueryClient } from "@tanstack/react-query"
 import { ArrowLeft, Flame, LoaderCircle, Save, Trash2 } from "lucide-react"
 import Link from "next/link"
@@ -7,13 +8,13 @@ import { useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerTitle,
+} from "@/components/ui/drawer"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useDailyCalorieSummary } from "@/lib/app-cache/api"
 import { queryKeys } from "@/lib/app-cache/query-keys"
@@ -34,6 +35,11 @@ import {
   type PendingFood,
 } from "../../add/_components/add-food-shared"
 import { useLogPendingFoods } from "../../add/_components/use-log-pending-foods"
+import {
+  IngredientListPanel,
+  MacroQuad,
+  StatRow,
+} from "../../recipes/_components/recipe-drawer-pieces"
 
 function toIsoDate(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(
@@ -57,6 +63,8 @@ export function PlatePageClient() {
   const [, setPendingSheetOpen] = useState(false)
   const [recipeDialogOpen, setRecipeDialogOpen] = useState(false)
   const [recipeName, setRecipeName] = useState("")
+  const [recipeWeight, setRecipeWeight] = useState("")
+  const [recipeServings, setRecipeServings] = useState("")
   const [isSavingRecipe, setIsSavingRecipe] = useState(false)
   const [selectedDate, setSelectedDate] = useState(() => new Date())
   const [selectedHour, setSelectedHour] = useState(() => new Date().getHours())
@@ -75,7 +83,12 @@ export function PlatePageClient() {
   const logDate = useMemo(() => toIsoDate(selectedDate), [selectedDate])
   const eatenAt = useMemo(() => {
     const d = new Date(selectedDate)
-    d.setHours(selectedHour, 0, 0, 0)
+    const now = new Date()
+    const minute =
+      d.toDateString() === now.toDateString() && selectedHour === now.getHours()
+        ? Math.floor(now.getMinutes() / 15) * 15
+        : 0
+    d.setHours(selectedHour, minute, 0, 0)
     return d.toISOString()
   }, [selectedDate, selectedHour])
 
@@ -125,7 +138,30 @@ export function PlatePageClient() {
       toast.error("Recipe name is required")
       return
     }
+    const totalWeightGrams = Number.parseFloat(recipeWeight)
+    if (!Number.isFinite(totalWeightGrams) || totalWeightGrams <= 0) {
+      toast.error("Total recipe weight is required")
+      return
+    }
+    const servings = recipeServings.trim()
+      ? Number.parseFloat(recipeServings)
+      : undefined
+    if (servings != null && (!Number.isFinite(servings) || servings <= 0)) {
+      toast.error("Servings must be a positive number")
+      return
+    }
     if (pendingFoods.length === 0) return
+    if (pendingFoods.some((food) => !("sourceItemId" in food.input))) {
+      toast.error("Recipes can only be made from food items")
+      return
+    }
+    const foodIngredients = pendingFoods.filter(
+      (
+        food
+      ): food is PendingFood & {
+        input: PendingFood["input"] & { sourceItemId: string }
+      } => "sourceItemId" in food.input
+    )
 
     setIsSavingRecipe(true)
     try {
@@ -134,7 +170,9 @@ export function PlatePageClient() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           name,
-          ingredients: pendingFoods.map((food) => ({
+          totalWeightGrams,
+          servings,
+          ingredients: foodIngredients.map((food) => ({
             sourceItemId: food.input.sourceItemId,
             servingsConsumed: food.input.servingsConsumed,
           })),
@@ -145,6 +183,8 @@ export function PlatePageClient() {
       setPendingFoods([])
       setRecipeDialogOpen(false)
       setRecipeName("")
+      setRecipeWeight("")
+      setRecipeServings("")
       await queryClient.invalidateQueries({
         queryKey: queryKeys.calorieSummary,
       })
@@ -272,44 +312,205 @@ export function PlatePageClient() {
         </Button>
       </div>
 
-      <Dialog open={recipeDialogOpen} onOpenChange={setRecipeDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Name recipe</DialogTitle>
-          </DialogHeader>
-          <Input
-            value={recipeName}
-            onChange={(event) => setRecipeName(event.target.value)}
-            placeholder="Recipe name"
-            autoComplete="off"
-          />
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setRecipeDialogOpen(false)}
-              disabled={isSavingRecipe}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              onClick={saveRecipe}
-              disabled={isSavingRecipe}
-            >
-              {isSavingRecipe ? (
-                <>
-                  <LoaderCircle className="size-4 animate-spin" />
-                  Saving
-                </>
-              ) : (
-                "Save Recipe"
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <CreateRecipeDrawer
+        open={recipeDialogOpen}
+        onOpenChange={setRecipeDialogOpen}
+        pendingFoods={pendingFoods}
+        totals={totals}
+        recipeName={recipeName}
+        recipeWeight={recipeWeight}
+        recipeServings={recipeServings}
+        onNameChange={setRecipeName}
+        onWeightChange={setRecipeWeight}
+        onServingsChange={setRecipeServings}
+        isSaving={isSavingRecipe}
+        onSave={saveRecipe}
+      />
     </div>
+  )
+}
+
+function CreateRecipeDrawer({
+  open,
+  onOpenChange,
+  pendingFoods,
+  totals,
+  recipeName,
+  recipeWeight,
+  recipeServings,
+  onNameChange,
+  onWeightChange,
+  onServingsChange,
+  isSaving,
+  onSave,
+}: {
+  open: boolean
+  onOpenChange: (next: boolean) => void
+  pendingFoods: PendingFood[]
+  totals: { calories: number; protein: number; carbs: number; fat: number }
+  recipeName: string
+  recipeWeight: string
+  recipeServings: string
+  onNameChange: (next: string) => void
+  onWeightChange: (next: string) => void
+  onServingsChange: (next: string) => void
+  isSaving: boolean
+  onSave: () => void
+}) {
+  const ingredients = useMemo(
+    () =>
+      pendingFoods.map((food) => ({
+        id: food.uid,
+        foodName: food.food.name,
+        brand: food.food.brand ?? null,
+        servings: food.input.servingsConsumed,
+        caloriesContribution: food.macros.calories,
+        proteinContribution: food.macros.protein,
+        carbsContribution: food.macros.carbs,
+        fatContribution: food.macros.fat,
+      })),
+    [pendingFoods]
+  )
+
+  const parsedWeight = Number.parseFloat(recipeWeight)
+  const parsedServings = Number.parseFloat(recipeServings)
+  const weightForCalc =
+    Number.isFinite(parsedWeight) && parsedWeight > 0 ? parsedWeight : 0
+  const servingsForCalc =
+    Number.isFinite(parsedServings) && parsedServings > 0 ? parsedServings : 1
+  const previewMacros = {
+    calories: totals.calories / servingsForCalc,
+    protein: totals.protein / servingsForCalc,
+    carbs: totals.carbs / servingsForCalc,
+    fat: totals.fat / servingsForCalc,
+  }
+  const gramsPerServing =
+    weightForCalc > 0 ? weightForCalc / servingsForCalc : 0
+
+  return (
+    <Drawer
+      hideBackdrop
+      open={open}
+      onOpenChange={onOpenChange}
+      repositionInputs={false}
+    >
+      <DrawerContent className="z-70! flex h-[calc(100dvh-4rem)]! max-h-none! flex-col rounded-none">
+        <VisuallyHidden>
+          <DrawerTitle>Save as recipe</DrawerTitle>
+          <DrawerDescription>
+            Combine plate items into a saved recipe.
+          </DrawerDescription>
+        </VisuallyHidden>
+        <div className="flex flex-none items-center gap-2 border-b border-border px-3 py-3">
+          <button
+            type="button"
+            onClick={() => onOpenChange(false)}
+            aria-label="Close"
+            className="flex size-8 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            <ArrowLeft className="size-4" />
+          </button>
+          <h2 className="truncate text-sm font-semibold text-foreground">
+            Save as Recipe
+          </h2>
+          {isSaving ? (
+            <LoaderCircle className="ml-auto size-4 animate-spin text-muted-foreground" />
+          ) : null}
+        </div>
+        <div className="flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 py-4">
+          <div className="space-y-3 rounded-xl border border-border/60 bg-background p-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="recipe-create-name">Name</Label>
+              <Input
+                id="recipe-create-name"
+                value={recipeName}
+                onChange={(event) => onNameChange(event.target.value)}
+                placeholder="Recipe name"
+                autoComplete="off"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="recipe-create-weight">Total weight (g)</Label>
+                <Input
+                  id="recipe-create-weight"
+                  value={recipeWeight}
+                  onChange={(event) => onWeightChange(event.target.value)}
+                  placeholder="e.g. 850"
+                  inputMode="decimal"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="recipe-create-servings">Servings</Label>
+                <Input
+                  id="recipe-create-servings"
+                  value={recipeServings}
+                  onChange={(event) => onServingsChange(event.target.value)}
+                  placeholder="1"
+                  inputMode="decimal"
+                />
+              </div>
+            </div>
+            <div className="space-y-1 pt-1">
+              <StatRow
+                label="Per serving"
+                value={
+                  gramsPerServing > 0
+                    ? `${
+                        gramsPerServing < 10
+                          ? gramsPerServing.toFixed(1)
+                          : Math.round(gramsPerServing)
+                      }g - ${Math.round(previewMacros.calories)} kcal`
+                    : `${Math.round(previewMacros.calories)} kcal`
+                }
+              />
+              <StatRow
+                label="Total"
+                value={`${Math.round(totals.calories)} kcal - ${
+                  ingredients.length
+                } ingredient${ingredients.length === 1 ? "" : "s"}`}
+              />
+            </div>
+          </div>
+
+          <div>
+            <p className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Per-serving preview
+            </p>
+            <MacroQuad
+              calories={previewMacros.calories}
+              protein={previewMacros.protein}
+              carbs={previewMacros.carbs}
+              fat={previewMacros.fat}
+            />
+          </div>
+
+          {ingredients.length > 0 ? (
+            <IngredientListPanel ingredients={ingredients} />
+          ) : null}
+        </div>
+        <div
+          className="border-t border-border bg-background px-3 py-3"
+          style={{ paddingBottom: "max(env(safe-area-inset-bottom), 0.75rem)" }}
+        >
+          <Button
+            type="button"
+            onClick={onSave}
+            disabled={isSaving || ingredients.length === 0}
+            className="h-11 w-full rounded-full bg-foreground text-background hover:bg-foreground/90"
+          >
+            {isSaving ? (
+              <>
+                <LoaderCircle className="size-4 animate-spin" />
+                Saving
+              </>
+            ) : (
+              "Save Recipe"
+            )}
+          </Button>
+        </div>
+      </DrawerContent>
+    </Drawer>
   )
 }
 

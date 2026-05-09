@@ -8,7 +8,7 @@
  
 ### Security & Safety
 - Unsafe code blocks without justification
-- Command injection risks (shell commands, user input)
+- Command injection risks
 - Path traversal vulnerabilities
 - Credential exposure or hardcoded secrets
 - Missing input validation on external data
@@ -19,16 +19,16 @@
 - Race conditions in async code
 - Resource leaks (files, connections, memory)
 - Off-by-one errors or boundary conditions
-- Incorrect error propagation (using `unwrap()` inappropriately)
+- Incorrect error propagation
 - Optional types that don’t need to be optional
 - Booleans that should default to false but are set as optional
-- Error context that doesn’t add useful information (e.g., `.context("Failed to do X")` when error already says it failed)
+- Error context that doesn’t add useful information
 - Overly defensive code that adds unnecessary checks
 - Unnecessary comments that just restate what the code already shows (remove them)
  
 ### Architecture & Patterns
 - Code that violates existing patterns in the codebase
-- Missing error handling (should use `anyhow::Result`)
+- Missing error handling
 - Async/await misuse or blocking operations in async contexts
 - Improper trait implementations
 

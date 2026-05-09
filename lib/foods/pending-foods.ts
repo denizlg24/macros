@@ -2,6 +2,10 @@ import { z } from "zod"
 
 import { type LogFoodInput, logFoodBodySchema } from "@/lib/foods/contracts"
 import type { OptimisticDailyMacros } from "@/lib/optimistic-nutrition"
+import {
+  type LogRecipeInput,
+  logRecipeBodySchema,
+} from "@/lib/recipes/contracts"
 
 export interface PendingFoodSummary {
   id: string
@@ -12,12 +16,15 @@ export interface PendingFoodSummary {
   proteinPerServing: number | null | undefined
   fatPerServing: number | null | undefined
   carbsPerServing: number | null | undefined
+  totalWeightGrams?: number | null | undefined
+  servings?: number | null | undefined
 }
 
 export interface PendingFood {
   uid: string
+  entryType?: "food" | "recipe"
   food: PendingFoodSummary
-  input: LogFoodInput
+  input: LogFoodInput | LogRecipeInput
   macros: OptimisticDailyMacros
 }
 
@@ -27,6 +34,7 @@ const PENDING_FOODS_KEY = "macros.pending-foods.v1"
 
 export const pendingFoodSchema = z.object({
   uid: z.uuid(),
+  entryType: z.enum(["food", "recipe"]).optional().default("food"),
   food: z.object({
     id: z.uuid(),
     name: z.string(),
@@ -36,8 +44,10 @@ export const pendingFoodSchema = z.object({
     proteinPerServing: z.number().nullable().optional(),
     fatPerServing: z.number().nullable().optional(),
     carbsPerServing: z.number().nullable().optional(),
+    totalWeightGrams: z.number().nullable().optional(),
+    servings: z.number().nullable().optional(),
   }),
-  input: logFoodBodySchema,
+  input: z.union([logFoodBodySchema, logRecipeBodySchema]),
   macros: z.object({
     calories: z.number(),
     protein: z.number(),

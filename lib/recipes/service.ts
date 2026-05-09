@@ -19,7 +19,10 @@ import {
 import type {
   CreateRecipeInput,
   LogRecipeInput,
+  RecipeDetail,
+  RecipeIngredientDetail,
   RecipeSummary,
+  UpdateRecipeInput,
 } from "@/lib/recipes/contracts"
 
 type DbTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0]
@@ -96,6 +99,7 @@ function toSummary(
   >,
   snapshot: Pick<
     typeof recipeNutritionSnapshots.$inferSelect,
+    | "totalWeightGrams"
     | "caloriesPerServing"
     | "proteinPerServing"
     | "carbsPerServing"
@@ -108,6 +112,7 @@ function toSummary(
     name: recipe.name,
     servingLabel: recipe.servingLabel,
     servings: Number(recipe.servings),
+    totalWeightGrams: Number(snapshot.totalWeightGrams ?? 0),
     caloriesPerServing: Number(snapshot.caloriesPerServing),
     proteinPerServing: Number(snapshot.proteinPerServing),
     carbsPerServing: Number(snapshot.carbsPerServing),
@@ -139,13 +144,20 @@ export async function createRecipeFromFoods(
   }
 
   const created = await db.transaction(async (tx) => {
+    const servings = input.servings ?? 1
+    const perServingNutrients = Object.fromEntries(
+      Object.entries(totalNutrients).map(([key, amount]) => [
+        key,
+        amount / servings,
+      ])
+    )
     const [recipe] = await tx
       .insert(recipes)
       .values({
         userId,
         name: input.name.trim(),
-        servings: "1",
-        servingLabel: "recipe",
+        servings: toNumericString(servings),
+        servingLabel: "serving",
         status: "active",
       })
       .returning()
@@ -169,15 +181,16 @@ export async function createRecipeFromFoods(
         recipeId: recipe.id,
         servings: recipe.servings,
         servingLabel: recipe.servingLabel,
-        caloriesPerServing: toNumericString(totalNutrients.calories ?? 0),
-        proteinPerServing: toNumericString(totalNutrients.protein ?? 0),
-        carbsPerServing: toNumericString(totalNutrients.carbs ?? 0),
-        fatPerServing: toNumericString(totalNutrients.fat ?? 0),
-        nutrientsPerServing: totalNutrients,
+        totalWeightGrams: toNumericString(input.totalWeightGrams),
+        caloriesPerServing: toNumericString(perServingNutrients.calories ?? 0),
+        proteinPerServing: toNumericString(perServingNutrients.protein ?? 0),
+        carbsPerServing: toNumericString(perServingNutrients.carbs ?? 0),
+        fatPerServing: toNumericString(perServingNutrients.fat ?? 0),
+        nutrientsPerServing: perServingNutrients,
       })
       .returning()
 
-    const nutrientRows = Object.entries(totalNutrients).map(
+    const nutrientRows = Object.entries(perServingNutrients).map(
       ([nutrientKey, amount]) => ({
         snapshotId: snapshot.id,
         nutrientKey: nutrientKey as NutrientKey,
@@ -211,6 +224,195 @@ export async function getUserRecipes(userId: string): Promise<RecipeSummary[]> {
   }
 
   return summaries
+}
+
+export async function updateRecipe(
+  userId: string,
+  recipeId: string,
+  input: UpdateRecipeInput
+) {
+  const existing = await db.query.recipes.findFirst({
+    where: and(
+      eq(recipes.id, recipeId),
+      eq(recipes.userId, userId),
+      eq(recipes.status, "active")
+    ),
+  })
+  if (!existing) {
+    throw new Error("Recipe not found")
+  }
+
+  const snapshot = await latestRecipeSnapshot(recipeId)
+  if (!snapshot) {
+    throw new Error("Recipe has no nutrition snapshot")
+  }
+
+  const totalNutrients = Object.fromEntries(
+    snapshot.nutrients.map((nutrient) => [
+      nutrient.nutrientKey,
+      Number(nutrient.amountPerServing) * Number(snapshot.servings),
+    ])
+  )
+  const perServingNutrients = Object.fromEntries(
+    Object.entries(totalNutrients).map(([key, amount]) => [
+      key,
+      amount / input.servings,
+    ])
+  )
+
+  const updated = await db.transaction(async (tx) => {
+    const [recipe] = await tx
+      .update(recipes)
+      .set({
+        name: input.name.trim(),
+        servings: toNumericString(input.servings),
+        updatedAt: new Date(),
+      })
+      .where(eq(recipes.id, recipeId))
+      .returning()
+
+    const [newSnapshot] = await tx
+      .insert(recipeNutritionSnapshots)
+      .values({
+        recipeId,
+        servings: recipe.servings,
+        servingLabel: recipe.servingLabel,
+        totalWeightGrams: toNumericString(input.totalWeightGrams),
+        caloriesPerServing: toNumericString(perServingNutrients.calories ?? 0),
+        proteinPerServing: toNumericString(perServingNutrients.protein ?? 0),
+        carbsPerServing: toNumericString(perServingNutrients.carbs ?? 0),
+        fatPerServing: toNumericString(perServingNutrients.fat ?? 0),
+        nutrientsPerServing: perServingNutrients,
+      })
+      .returning()
+
+    const nutrientRows = Object.entries(perServingNutrients).map(
+      ([nutrientKey, amount]) => ({
+        snapshotId: newSnapshot.id,
+        nutrientKey: nutrientKey as NutrientKey,
+        amountPerServing: toNumericString(amount),
+      })
+    )
+    if (nutrientRows.length > 0) {
+      await tx.insert(recipeSnapshotNutrients).values(nutrientRows)
+    }
+
+    const ingredientCount = await tx.query.recipeIngredients.findMany({
+      where: eq(recipeIngredients.recipeId, recipeId),
+      columns: { id: true },
+    })
+
+    return { recipe, snapshot: newSnapshot, ingredientCount }
+  })
+
+  return toSummary(
+    updated.recipe,
+    updated.snapshot,
+    updated.ingredientCount.length
+  )
+}
+
+export async function getRecipeDetail(
+  userId: string,
+  recipeId: string
+): Promise<RecipeDetail> {
+  const recipe = await db.query.recipes.findFirst({
+    where: and(
+      eq(recipes.id, recipeId),
+      eq(recipes.userId, userId),
+      eq(recipes.status, "active")
+    ),
+    with: {
+      ingredients: {
+        with: {
+          food: { columns: { name: true, brand: true } },
+          foodSnapshot: {
+            with: {
+              nutrients: {
+                columns: { nutrientKey: true, amount: true },
+              },
+            },
+          },
+          childRecipe: { columns: { name: true } },
+        },
+      },
+    },
+  })
+  if (!recipe) {
+    throw new Error("Recipe not found")
+  }
+
+  const snapshot = await latestRecipeSnapshot(recipeId)
+  if (!snapshot) {
+    throw new Error("Recipe has no nutrition snapshot")
+  }
+
+  const nutrientsPerServing: Record<string, number> = {}
+  for (const nutrient of snapshot.nutrients) {
+    nutrientsPerServing[nutrient.nutrientKey] = Number(
+      nutrient.amountPerServing
+    )
+  }
+
+  const ingredientDetails: RecipeIngredientDetail[] = recipe.ingredients
+    .slice()
+    .sort((left, right) => left.position - right.position)
+    .map((ingredient) => {
+      const servings = Number(ingredient.servings ?? ingredient.quantity)
+      const foodName =
+        ingredient.food?.name ??
+        ingredient.childRecipe?.name ??
+        "Unknown ingredient"
+      const brand = ingredient.food?.brand ?? null
+
+      const lookup = (key: string) => {
+        const row = ingredient.foodSnapshot?.nutrients.find(
+          (entry) => entry.nutrientKey === key
+        )
+        return row ? Number(row.amount) * servings : 0
+      }
+
+      return {
+        id: ingredient.id,
+        foodName,
+        brand,
+        servings,
+        caloriesContribution: lookup("calories"),
+        proteinContribution: lookup("protein"),
+        carbsContribution: lookup("carbs"),
+        fatContribution: lookup("fat"),
+      }
+    })
+
+  const summary = toSummary(recipe, snapshot, recipe.ingredients.length)
+
+  return {
+    ...summary,
+    nutrientsPerServing,
+    ingredients: ingredientDetails,
+  }
+}
+
+export async function deleteRecipe(userId: string, recipeId: string) {
+  const [deleted] = await db
+    .update(recipes)
+    .set({
+      status: "archived",
+      deletedAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(recipes.id, recipeId),
+        eq(recipes.userId, userId),
+        eq(recipes.status, "active")
+      )
+    )
+    .returning({ id: recipes.id })
+
+  if (!deleted) {
+    throw new Error("Recipe not found")
+  }
 }
 
 export async function logRecipe(userId: string, input: LogRecipeInput) {
