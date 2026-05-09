@@ -8,7 +8,7 @@ import {
 } from "@/lib/queries/nutrition-overview"
 
 const querySchema = z.object({
-  range: z.enum(["yesterday", "1w", "1m", "3m", "1y"]).optional(),
+  range: z.enum(["today", "yesterday", "1w", "1m", "3m", "1y"]).optional(),
   date: z.iso.date().optional(),
 })
 
