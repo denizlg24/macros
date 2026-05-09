@@ -1,6 +1,7 @@
 "use client"
 
 import { ChevronLeft, ChevronRight, Menu } from "lucide-react"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { MACRO_COLORS } from "@/lib/macro-colors"
 import type { FoodLogDayPayload } from "@/lib/queries/food-log-day"
@@ -40,13 +41,16 @@ export function FoodLogHeader({
     <div className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border/40">
       <div className="px-3 pt-3 pb-2 flex items-center gap-2">
         <Button
+          asChild
           type="button"
           variant="ghost"
           size="icon"
           className="size-9"
-          aria-label="Menu"
+          aria-label="Open food log calendar"
         >
-          <Menu className="size-5" />
+          <Link href="/app/food-log/calendar">
+            <Menu className="size-5" />
+          </Link>
         </Button>
         <div className="flex-1 flex items-center justify-center gap-2">
           <Button
