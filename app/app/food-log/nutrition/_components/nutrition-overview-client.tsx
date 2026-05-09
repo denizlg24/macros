@@ -179,19 +179,19 @@ export function NutritionOverviewClient() {
 
   const isTodaySelected = selectedDate === null || selectedDate === today
 
+  const dayRange: OverviewRange = isTodaySelected ? "today" : "yesterday"
+
   const dayTabLabel = useMemo(() => {
-    if (!selectedDate || isTodaySelected) return "Yesterday"
+    if (!selectedDate || isTodaySelected) return "Today"
     const parsed = parseISO(`${selectedDate}T00:00:00`)
-    return isValid(parsed) ? format(parsed, "EEE, MMM d") : "Yesterday"
+    return isValid(parsed) ? format(parsed, "EEE, MMM d") : "Today"
   }, [selectedDate, isTodaySelected])
 
-  const [range, setRange] = useState<OverviewRange>(() =>
-    isTodaySelected ? "1w" : "yesterday"
-  )
+  const [range, setRange] = useState<OverviewRange>(() => dayRange)
 
   useEffect(() => {
-    setRange(isTodaySelected ? "1w" : "yesterday")
-  }, [isTodaySelected])
+    setRange(dayRange)
+  }, [dayRange])
 
   const queryDate = range === "yesterday" ? selectedDate : null
   const { data, isLoading, isError } = useQuery({
@@ -221,14 +221,12 @@ export function NutritionOverviewClient() {
             <button
               key="yesterday"
               type="button"
-              disabled={isTodaySelected}
-              onClick={() => setRange("yesterday")}
+              onClick={() => setRange(dayRange)}
               className={cn(
                 "py-2 text-sm border-b-2 -mb-px",
-                range === "yesterday"
+                range === dayRange
                   ? "border-foreground font-semibold"
-                  : "border-transparent text-muted-foreground",
-                isTodaySelected && "opacity-40 cursor-not-allowed"
+                  : "border-transparent text-muted-foreground"
               )}
             >
               {dayTabLabel}
@@ -280,7 +278,7 @@ function OverviewLoading() {
 
 function OverviewBody({ data }: { data: NutritionOverviewPayload }) {
   const map = new Map(data.nutrients.map((n) => [n.key, n]))
-  const isAggregate = data.range !== "yesterday"
+  const isAggregate = data.range !== "today" && data.range !== "yesterday"
 
   return (
     <div className="px-4 pt-6 pb-16 space-y-8">

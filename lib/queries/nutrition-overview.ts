@@ -1,8 +1,10 @@
-import { and, between, desc, eq } from "drizzle-orm"
+import { and, between, desc, eq, sql } from "drizzle-orm"
 
 import { db } from "@/db/connection"
 import {
   dailyNutritionSummaries,
+  foodLogEntries,
+  foodLogEntryNutrients,
   nutrientTargets,
   nutritionPlans,
   userProfiles,
@@ -19,7 +21,7 @@ import {
 } from "@/lib/foods/who-guidelines"
 import { toIsoDate } from "./food-log-day"
 
-export type OverviewRange = "yesterday" | "1w" | "1m" | "3m" | "1y"
+export type OverviewRange = "today" | "yesterday" | "1w" | "1m" | "3m" | "1y"
 
 export interface NutrientRow {
   key: string
@@ -57,6 +59,9 @@ function rangeBounds(
 } {
   const end = new Date(`${today}T00:00:00Z`)
   const start = new Date(`${today}T00:00:00Z`)
+  if (range === "today") {
+    return { start: today, end: today }
+  }
   if (range === "yesterday") {
     if (specificDate) {
       return { start: specificDate, end: specificDate }
@@ -76,6 +81,30 @@ function rangeBounds(
     start: start.toISOString().slice(0, 10),
     end: end.toISOString().slice(0, 10),
   }
+}
+
+async function getLiveNutrientTotals(userId: string, logDate: string) {
+  const rows = await db
+    .select({
+      nutrientKey: foodLogEntryNutrients.nutrientKey,
+      total: sql<string>`sum(${foodLogEntryNutrients.amount})`,
+    })
+    .from(foodLogEntries)
+    .innerJoin(
+      foodLogEntryNutrients,
+      eq(foodLogEntryNutrients.entryId, foodLogEntries.id)
+    )
+    .where(
+      and(
+        eq(foodLogEntries.userId, userId),
+        eq(foodLogEntries.logDate, logDate)
+      )
+    )
+    .groupBy(foodLogEntryNutrients.nutrientKey)
+
+  return Object.fromEntries(
+    rows.map((row) => [row.nutrientKey, Number(row.total)])
+  )
 }
 
 export async function getNutritionOverview(
@@ -115,6 +144,7 @@ export async function getNutritionOverview(
   const [summaryRows, targetRows] = await Promise.all([
     db
       .select({
+        logDate: dailyNutritionSummaries.logDate,
         nutrients: dailyNutritionSummaries.nutrients,
       })
       .from(dailyNutritionSummaries)
@@ -135,8 +165,20 @@ export async function getNutritionOverview(
       : Promise.resolve([] as { nutrientKey: string; targetValue: string }[]),
   ])
 
+  const trackedRows = [...summaryRows]
+  if (start <= today && today <= end) {
+    const todayNutrients = await getLiveNutrientTotals(userId, today)
+    const todayIndex = trackedRows.findIndex((row) => row.logDate === today)
+    const todayRow = { logDate: today, nutrients: todayNutrients }
+    if (todayIndex >= 0) {
+      trackedRows[todayIndex] = todayRow
+    } else if (Object.keys(todayNutrients).length > 0) {
+      trackedRows.push(todayRow)
+    }
+  }
+
   const totalsByKey: Record<string, number> = {}
-  for (const row of summaryRows) {
+  for (const row of trackedRows) {
     if (!row.nutrients || typeof row.nutrients !== "object") continue
     for (const [k, v] of Object.entries(
       row.nutrients as Record<string, unknown>
@@ -153,15 +195,9 @@ export async function getNutritionOverview(
     targetByKey.set(t.nutrientKey, Number(t.targetValue))
   }
 
-  const startDate = new Date(start)
-  const endDate = new Date(end)
-  const dayCount = Math.max(
-    1,
-    Math.floor(
-      (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)
-    ) + 1
-  )
-  const isAggregate = range !== "yesterday"
+  const trackedDayCount = trackedRows.length
+  const divisor = Math.max(1, trackedDayCount)
+  const isAggregate = range !== "today" && range !== "yesterday"
 
   const macroTargets = {
     calories: plan?.calorieTarget != null ? Number(plan.calorieTarget) : null,
@@ -172,7 +208,7 @@ export async function getNutritionOverview(
 
   const nutrients: NutrientRow[] = nutrientDefinitionsInput.map((def) => {
     const total = totalsByKey[def.key] ?? 0
-    const consumed = isAggregate ? total / dayCount : total
+    const consumed = isAggregate ? total / divisor : total
     let target: number | null = targetByKey.get(def.key) ?? null
     if (def.key === "calories" && macroTargets.calories != null)
       target = macroTargets.calories
@@ -202,7 +238,7 @@ export async function getNutritionOverview(
     range,
     startDate: start,
     endDate: end,
-    daysCount: dayCount,
+    daysCount: trackedDayCount,
     timezone,
     nutrients,
     targets: macroTargets,
