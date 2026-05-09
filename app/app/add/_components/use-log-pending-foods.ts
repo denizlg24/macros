@@ -23,6 +23,10 @@ import {
 } from "@/lib/optimistic-nutrition"
 import type { FoodLogDayPayload } from "@/lib/queries/food-log-day"
 import {
+  type LogRecipeInput,
+  logRecipeResponseSchema,
+} from "@/lib/recipes/contracts"
+import {
   getPendingCalories,
   type PendingFood,
   saveFailedPendingFoods,
@@ -45,6 +49,20 @@ async function postFoodLog(input: LogFoodInput) {
   })
 
   return logFoodResponseSchema.parse(await readJsonResponse(response))
+}
+
+async function postRecipeLog(input: LogRecipeInput) {
+  const response = await fetch("/api/food-log/recipe-entries", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  })
+
+  return logRecipeResponseSchema.parse(await readJsonResponse(response))
+}
+
+function isRecipeInput(input: PendingFood["input"]): input is LogRecipeInput {
+  return "recipeId" in input
 }
 
 interface UseLogPendingFoodsOptions {
@@ -107,14 +125,20 @@ export function useLogPendingFoods({
           foodLogQueryKeys.day(foodLogDate),
           (prev) => {
             if (!prev) return prev
+            const recipe =
+              food.entryType === "recipe" || isRecipeInput(food.input)
             const fakeEntry: FoodLogDayPayload["entries"][number] = {
               id: food.uid,
               logDate: foodLogDate,
               eatenAt: food.input.eatenAt ?? null,
               mealType: food.input.mealType ?? "snack",
-              entryType: "food",
-              foodId: food.input.sourceItemId,
-              recipeId: null,
+              entryType: recipe ? "recipe" : "food",
+              foodId:
+                recipe || !("sourceItemId" in food.input)
+                  ? null
+                  : food.input.sourceItemId,
+              recipeId:
+                recipe && "recipeId" in food.input ? food.input.recipeId : null,
               foodName: food.food.name,
               brand: food.food.brand ?? null,
               servingLabel: food.food.servingLabel ?? null,
@@ -147,7 +171,10 @@ export function useLogPendingFoods({
       let succeededCount = 0
 
       for (const food of foodsToLog) {
-        const result = await postFoodLog(food.input).catch(() => null)
+        const result = await (isRecipeInput(food.input)
+          ? postRecipeLog(food.input)
+          : postFoodLog(food.input)
+        ).catch(() => null)
 
         if (!result) {
           failedFoods.push(food)

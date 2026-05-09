@@ -10,6 +10,7 @@ import {
   Search,
   Trash2,
 } from "lucide-react"
+import { useRouter } from "next/navigation"
 import {
   type ChangeEvent,
   useCallback,
@@ -520,6 +521,7 @@ function FoodsLogic({
 }: {
   calorieSummary: DailyCalorieSummary
 }) {
+  const router = useRouter()
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [foods, setFoods] = useState<FoodSearchItem[]>([])
   const [query, setQuery] = useState("")
@@ -547,9 +549,21 @@ function FoodsLogic({
   )
   const eatenAt = useMemo(() => {
     const d = new Date(selectedDate)
-    d.setHours(selectedHour, 0, 0, 0)
+    const nowInTz = new Date()
+    const nowHourInTz = getHourInTimezone(nowInTz, calorieSummary.timezone)
+    const nowDateInTz = dateFromIsoDate(
+      new Intl.DateTimeFormat("en-CA", {
+        timeZone: calorieSummary.timezone,
+      }).format(nowInTz)
+    )
+    const minute =
+      d.toDateString() === nowDateInTz.toDateString() &&
+      selectedHour === nowHourInTz
+        ? Math.floor(nowInTz.getMinutes() / 15) * 15
+        : 0
+    d.setHours(selectedHour, minute, 0, 0)
     return d.toISOString()
-  }, [selectedDate, selectedHour])
+  }, [selectedDate, selectedHour, calorieSummary.timezone])
   const logDate = useMemo(() => toIsoDate(selectedDate), [selectedDate])
 
   const loadFoods = useCallback(async () => {
@@ -736,7 +750,7 @@ function FoodsLogic({
           }}
           pendingCount={pendingFoods.length}
           pendingCalories={pendingCalories}
-          onViewPending={() => setPendingSheetOpen(true)}
+          onViewPending={() => router.push("/app/plate")}
         />
         <NavTabs />
       </div>
@@ -873,6 +887,7 @@ function FoodsLogic({
       <CreateFoodDrawer
         open={createFoodOpen}
         barcode={null}
+        autoFocusName={false}
         onClose={() => setCreateFoodOpen(false)}
         onCreated={(food) => {
           setCreateFoodOpen(false)

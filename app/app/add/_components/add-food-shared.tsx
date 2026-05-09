@@ -24,6 +24,10 @@ import {
 import { type LogFoodInput, logFoodBodySchema } from "@/lib/foods/contracts"
 import type { OptimisticDailyMacros } from "@/lib/optimistic-nutrition"
 import type { DailyCalorieSummary } from "@/lib/queries/calorie-summary"
+import {
+  type LogRecipeInput,
+  logRecipeBodySchema,
+} from "@/lib/recipes/contracts"
 import { cn } from "@/lib/utils"
 import type { FoodSummary } from "./food-detail-drawer"
 
@@ -71,14 +75,19 @@ export function inferMealType(
 
 export type PendingFood = {
   uid: string
-  food: FoodSummary
-  input: LogFoodInput
+  entryType?: "food" | "recipe"
+  food: FoodSummary & {
+    totalWeightGrams?: number | null | undefined
+    servings?: number | null | undefined
+  }
+  input: LogFoodInput | LogRecipeInput
   macros: OptimisticDailyMacros
 }
 
 const FAILED_PENDING_FOODS_KEY = "macros.failed-pending-foods.v1"
 const failedPendingFoodSchema = z.object({
   uid: z.uuid(),
+  entryType: z.enum(["food", "recipe"]).optional().default("food"),
   food: z.object({
     id: z.uuid(),
     name: z.string(),
@@ -88,8 +97,10 @@ const failedPendingFoodSchema = z.object({
     proteinPerServing: z.number().nullable().optional(),
     fatPerServing: z.number().nullable().optional(),
     carbsPerServing: z.number().nullable().optional(),
+    totalWeightGrams: z.number().nullable().optional(),
+    servings: z.number().nullable().optional(),
   }),
-  input: logFoodBodySchema,
+  input: z.union([logFoodBodySchema, logRecipeBodySchema]),
   macros: z.object({
     calories: z.number(),
     protein: z.number(),

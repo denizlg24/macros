@@ -64,6 +64,11 @@ import {
 } from "@/lib/optimistic-nutrition"
 import type { DailyCalorieSummary } from "@/lib/queries/calorie-summary"
 import type { FoodLogDayPayload } from "@/lib/queries/food-log-day"
+import {
+  type LogRecipeInput,
+  logRecipeBodySchema,
+  logRecipeResponseSchema,
+} from "@/lib/recipes/contracts"
 import { cn } from "@/lib/utils"
 import {
   getCachedFoodSearch,
@@ -102,6 +107,20 @@ async function postFoodLog(input: LogFoodInput) {
   })
 
   return logFoodResponseSchema.parse(await readJsonResponse(response))
+}
+
+async function postRecipeLog(input: LogRecipeInput) {
+  const response = await fetch("/api/food-log/recipe-entries", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+  })
+
+  return logRecipeResponseSchema.parse(await readJsonResponse(response))
+}
+
+function isRecipeInput(input: PendingFood["input"]): input is LogRecipeInput {
+  return "recipeId" in input
 }
 
 export function getHourInTimezone(date: Date, timezone: string) {
@@ -952,7 +971,7 @@ function dedupeById<T extends { id: string }>(items: T[]) {
 export type PendingFood = {
   uid: string
   food: FoodSummary
-  input: LogFoodInput
+  input: LogFoodInput | LogRecipeInput
   macros: OptimisticDailyMacros
 }
 
@@ -969,7 +988,7 @@ const failedPendingFoodSchema = z.object({
     fatPerServing: z.number().nullable().optional(),
     carbsPerServing: z.number().nullable().optional(),
   }),
-  input: logFoodBodySchema,
+  input: z.union([logFoodBodySchema, logRecipeBodySchema]),
   macros: z.object({
     calories: z.number(),
     protein: z.number(),
@@ -1308,7 +1327,12 @@ export function AddFoodLogic({
 
   const eatenAt = useMemo(() => {
     const d = new Date(selectedDate)
-    d.setHours(selectedHour, 0, 0, 0)
+    const now = new Date()
+    const minute =
+      d.toDateString() === now.toDateString() && selectedHour === now.getHours()
+        ? Math.floor(now.getMinutes() / 15) * 15
+        : 0
+    d.setHours(selectedHour, minute, 0, 0)
     return d.toISOString()
   }, [selectedDate, selectedHour])
 
@@ -1418,20 +1442,22 @@ export function AddFoodLogic({
           foodLogQueryKeys.day(foodLogDate),
           (prev) => {
             if (!prev) return prev
+            const input = food.input
+            const recipe = isRecipeInput(input)
             const fakeEntry: FoodLogDayPayload["entries"][number] = {
               id: food.uid,
               logDate: foodLogDate,
-              eatenAt: food.input.eatenAt ?? null,
-              mealType: food.input.mealType ?? "snack",
-              entryType: "food",
-              foodId: food.input.sourceItemId,
-              recipeId: null,
+              eatenAt: input.eatenAt ?? null,
+              mealType: input.mealType ?? "snack",
+              entryType: recipe ? "recipe" : "food",
+              foodId: recipe ? null : input.sourceItemId,
+              recipeId: recipe ? input.recipeId : null,
               foodName: food.food.name,
               brand: food.food.brand ?? null,
               servingLabel: food.food.servingLabel ?? null,
               servingQuantity: 1,
               servingUnit: "serving",
-              servingsConsumed: food.input.servingsConsumed,
+              servingsConsumed: input.servingsConsumed,
               notes: null,
               calories: food.macros.calories,
               protein: food.macros.protein,
@@ -1458,7 +1484,10 @@ export function AddFoodLogic({
       let succeededCount = 0
 
       for (const pf of foodsToLog) {
-        const result = await postFoodLog(pf.input).catch(() => null)
+        const result = await (isRecipeInput(pf.input)
+          ? postRecipeLog(pf.input)
+          : postFoodLog(pf.input)
+        ).catch(() => null)
 
         if (!result) {
           failedFoods.push(pf)
@@ -1592,7 +1621,7 @@ export function AddFoodLogic({
           }}
           pendingCount={pendingFoods.length}
           pendingCalories={pendingCalories}
-          onViewPending={() => setPendingSheetOpen(true)}
+          onViewPending={() => router.push("/app/plate")}
         />
         <NavTabs />
       </div>

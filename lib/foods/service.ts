@@ -900,7 +900,7 @@ export async function getFoodHistory(
   })
 }
 
-async function refreshDailyNutritionSummary(
+export async function refreshDailyNutritionSummary(
   tx: DbTransaction,
   userId: string,
   logDate: string

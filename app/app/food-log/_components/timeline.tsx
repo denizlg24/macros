@@ -42,6 +42,7 @@ function entryHour(e: FoodLogEntry, timezone: string): number {
 function entryTimeLabel(e: FoodLogEntry, timezone: string): string {
   if (!e.eatenAt) return ""
   const zonedDate = toZonedTime(new Date(e.eatenAt), timezone)
+  zonedDate.setMinutes(Math.floor(zonedDate.getMinutes() / 15) * 15, 0, 0)
   return format(zonedDate, "h:mm")
 }
 

@@ -353,7 +353,12 @@ function ScanLogic({
 
   const eatenAt = useMemo(() => {
     const d = new Date(selectedDate)
-    d.setHours(selectedHour, 0, 0, 0)
+    const now = new Date()
+    const minute =
+      d.toDateString() === now.toDateString() && selectedHour === now.getHours()
+        ? Math.floor(now.getMinutes() / 15) * 15
+        : 0
+    d.setHours(selectedHour, minute, 0, 0)
     return d.toISOString()
   }, [selectedDate, selectedHour])
 

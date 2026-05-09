@@ -3,7 +3,8 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { ChevronRight, ListChecks, Plus, SlidersHorizontal } from "lucide-react"
 import Link from "next/link"
-import { useMemo, useState } from "react"
+import { useSearchParams } from "next/navigation"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
 import {
   AlertDialog,
@@ -21,7 +22,7 @@ import { useHydrated } from "@/hooks/use-hydrated"
 import { foodLogQueryKeys } from "@/lib/app-cache/food-log-keys"
 import type { FoodLogDayPayload } from "@/lib/queries/food-log-day"
 import type { WeekTotalsPayload } from "@/lib/queries/food-log-week-totals"
-import { todayIso, weekDaysFor } from "../_lib/date-utils"
+import { shiftIso, todayIso, weekDaysFor } from "../_lib/date-utils"
 import { FoodLogHeader } from "./food-log-header"
 import { Timeline } from "./timeline"
 
@@ -50,9 +51,27 @@ async function fetchWeekTotals(
   return res.json() as Promise<WeekTotalsPayload>
 }
 
+function isValidIsoDate(dateStr: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return false
+  const [yearStr, monthStr, dayStr] = dateStr.split("-")
+  const year = Number(yearStr)
+  const month = Number(monthStr)
+  const day = Number(dayStr)
+  const date = new Date(year, month - 1, day)
+  return (
+    date.getFullYear() === year &&
+    date.getMonth() === month - 1 &&
+    date.getDate() === day
+  )
+}
+
 export function FoodLogClient() {
   const hydrated = useHydrated()
-  const [selectedDate, setSelectedDate] = useState<string>(() => todayIso())
+  const searchParams = useSearchParams()
+  const initialDate = searchParams.get("date")
+  const [selectedDate, setSelectedDate] = useState<string>(() =>
+    initialDate && isValidIsoDate(initialDate) ? initialDate : todayIso()
+  )
   const queryClient = useQueryClient()
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -61,6 +80,7 @@ export function FoodLogClient() {
     queryKey: foodLogQueryKeys.day(selectedDate),
     queryFn: ({ signal }) => fetchDay(selectedDate, signal),
     enabled: hydrated,
+    staleTime: 60_000,
   })
 
   const week = useMemo(() => weekDaysFor(selectedDate), [selectedDate])
@@ -71,7 +91,38 @@ export function FoodLogClient() {
     queryKey: foodLogQueryKeys.weekTotals(weekStart, weekEnd),
     queryFn: ({ signal }) => fetchWeekTotals(weekStart, weekEnd, signal),
     enabled: hydrated,
+    staleTime: 60_000,
   })
+
+  const prefetchDate = useCallback(
+    (date: string) => {
+      void queryClient.prefetchQuery({
+        queryKey: foodLogQueryKeys.day(date),
+        queryFn: ({ signal }) => fetchDay(date, signal),
+        staleTime: 60_000,
+      })
+
+      const nearbyWeek = weekDaysFor(date)
+      const nearbyStart = nearbyWeek[0]!.iso
+      const nearbyEnd = nearbyWeek[nearbyWeek.length - 1]!.iso
+      void queryClient.prefetchQuery({
+        queryKey: foodLogQueryKeys.weekTotals(nearbyStart, nearbyEnd),
+        queryFn: ({ signal }) =>
+          fetchWeekTotals(nearbyStart, nearbyEnd, signal),
+        staleTime: 60_000,
+      })
+    },
+    [queryClient]
+  )
+
+  useEffect(() => {
+    if (!hydrated) return
+    prefetchDate(shiftIso(selectedDate, -1))
+    const nextDate = shiftIso(selectedDate, 1)
+    if (nextDate <= todayIso()) {
+      prefetchDate(nextDate)
+    }
+  }, [hydrated, prefetchDate, selectedDate])
 
   async function performDelete(id: string) {
     setIsDeleting(true)
