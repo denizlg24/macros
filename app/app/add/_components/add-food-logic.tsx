@@ -849,9 +849,17 @@ export function HeaderChips({
           <DrawerTrigger asChild>
             <button
               type="button"
-              className="h-9 shrink-0 rounded-full bg-muted px-4 text-xs font-medium text-foreground"
+              className="flex h-9 shrink-0 flex-col items-center justify-center rounded-full bg-muted px-4 text-xs font-medium text-foreground leading-none"
             >
-              {formatHourLabel(selectedHour)}
+              {selectedDate.getTime() !== todayDate.getTime() && (
+                <span className="text-[9px] font-medium text-muted-foreground lowercase">
+                  {selectedDate.toLocaleDateString("en-US", {
+                    month: "short",
+                  })}
+                  , {selectedDate.getDate()}
+                </span>
+              )}
+              <span>{formatHourLabel(selectedHour)}</span>
             </button>
           </DrawerTrigger>
           <DrawerContent className="pb-safe">
