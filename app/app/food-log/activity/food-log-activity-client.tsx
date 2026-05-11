@@ -55,10 +55,6 @@ export function FoodLogActivityClient() {
     startOfMonth(new Date())
   )
 
-  if (isLoading || !data) {
-    return <ActivityLoading />
-  }
-
   if (isError) {
     return (
       <div className="min-h-dvh px-5 pt-5 pb-36">
@@ -67,6 +63,10 @@ export function FoodLogActivityClient() {
         </Button>
       </div>
     )
+  }
+
+  if (isLoading || !data) {
+    return <ActivityLoading />
   }
 
   const dayByDate = new Map(data.days.map((day) => [day.date, day]))

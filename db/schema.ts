@@ -613,6 +613,7 @@ export const weighIns = pgTable(
     timezoneAtLog: text("timezoneAtLog").notNull().default("UTC"),
     measuredAt: timestamp("measuredAt", { withTimezone: true }).notNull(),
     weightKg: numeric("weightKg", { precision: 7, scale: 3 }).notNull(),
+    bodyFatPct: numeric("bodyFatPct", { precision: 5, scale: 2 }),
     source: weighInSourceEnum("source").notNull().default("manual"),
     notes: text("notes"),
     ...timestamps,

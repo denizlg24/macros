@@ -107,6 +107,16 @@ export function WeighInPageClient() {
     saveMutation.mutate({ logDate: selectedDate, weightKg })
   }
 
+  if (isError) {
+    return (
+      <div className="min-h-dvh px-5 pt-5 pb-36">
+        <Button type="button" variant="outline" onClick={() => refetch()}>
+          Try again
+        </Button>
+      </div>
+    )
+  }
+
   if (isLoading || !data) {
     return (
       <div className="min-h-dvh px-5 pt-5 pb-36">
@@ -116,16 +126,6 @@ export function WeighInPageClient() {
             <Skeleton key={index} className="aspect-square rounded-full" />
           ))}
         </div>
-      </div>
-    )
-  }
-
-  if (isError) {
-    return (
-      <div className="min-h-dvh px-5 pt-5 pb-36">
-        <Button type="button" variant="outline" onClick={() => refetch()}>
-          Try again
-        </Button>
       </div>
     )
   }

@@ -23,7 +23,9 @@ export function PageHeader({
           <ArrowLeft className="size-5" />
         </Link>
       </Button>
-      <h1 className="text-center text-xl font-bold">{title}</h1>
+      <h1 className="min-w-0 truncate text-center text-xl font-bold">
+        {title}
+      </h1>
       <div className="flex justify-end">
         {action ?? <span className="size-9" aria-hidden="true" />}
       </div>

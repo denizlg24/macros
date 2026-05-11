@@ -10,7 +10,7 @@ function toItem(row: typeof weighIns.$inferSelect): WeighInItem {
     logDate: row.logDate,
     measuredAt: row.measuredAt.toISOString(),
     weightKg: Number(row.weightKg),
-    bodyFatPct: null,
+    bodyFatPct: row.bodyFatPct == null ? null : Number(row.bodyFatPct),
     notes: row.notes,
   }
 }
@@ -25,6 +25,8 @@ export async function upsertWeighIn(
   })
   const timezone = profile?.timezone ?? "UTC"
   const weightKg = input.weightKg.toFixed(3)
+  const bodyFatPct =
+    input.bodyFatPct != null ? input.bodyFatPct.toFixed(2) : null
 
   const [row] = await db
     .insert(weighIns)
@@ -34,6 +36,7 @@ export async function upsertWeighIn(
       timezoneAtLog: timezone,
       measuredAt: measuredAtForLogDate(input.logDate),
       weightKg,
+      bodyFatPct,
       notes: input.notes?.trim() || null,
     })
     .onConflictDoUpdate({
@@ -42,6 +45,7 @@ export async function upsertWeighIn(
         timezoneAtLog: timezone,
         measuredAt: measuredAtForLogDate(input.logDate),
         weightKg,
+        bodyFatPct,
         notes: input.notes?.trim() || null,
         updatedAt: sql`now()`,
       },

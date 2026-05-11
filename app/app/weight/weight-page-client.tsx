@@ -24,7 +24,7 @@ export function WeightPageClient() {
     return filterEntries(data.entries, range, data.today)
   }, [data, range])
 
-  if (isLoading || !data) {
+  if (isLoading) {
     return (
       <div className="min-h-dvh px-5 pt-5 pb-36">
         <Skeleton className="mb-5 h-8 w-40 mx-auto" />
@@ -39,6 +39,15 @@ export function WeightPageClient() {
         <Button type="button" variant="outline" onClick={() => refetch()}>
           Try again
         </Button>
+      </div>
+    )
+  }
+
+  if (!data) {
+    return (
+      <div className="min-h-dvh px-5 pt-5 pb-36">
+        <Skeleton className="mb-5 h-8 w-40 mx-auto" />
+        <Skeleton className="h-72 w-full" />
       </div>
     )
   }

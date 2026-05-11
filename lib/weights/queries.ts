@@ -15,7 +15,7 @@ function toItem(row: typeof weighIns.$inferSelect): WeighInItem {
     logDate: row.logDate,
     measuredAt: row.measuredAt.toISOString(),
     weightKg: Number(row.weightKg),
-    bodyFatPct: null,
+    bodyFatPct: row.bodyFatPct == null ? null : Number(row.bodyFatPct),
     notes: row.notes,
   }
 }

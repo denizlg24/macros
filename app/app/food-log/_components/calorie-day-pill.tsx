@@ -40,7 +40,10 @@ export function CalorieDayPill({
   const rectWidth = width - strokeWidth
   const rectHeight = height - strokeWidth
   const radius = Math.min(rectWidth, rectHeight) / 2
-  const perimeter = 2 * (rectWidth - rectHeight) + Math.PI * rectHeight
+  const perimeter =
+    rectWidth >= rectHeight
+      ? 2 * (rectWidth - rectHeight) + Math.PI * rectHeight
+      : 2 * (rectHeight - rectWidth) + Math.PI * rectWidth
   const startOffset = rectWidth / 2 - radius
   const fillRatio = target != null && target > 0 ? consumed / target : 0
   const fillLength = Math.min(fillRatio, 1) * perimeter
@@ -99,7 +102,7 @@ export function CalorieDayPill({
 
   if (disabled || !href) {
     return (
-      <div aria-disabled="true" data-date={iso}>
+      <div aria-disabled={disabled ? "true" : undefined} data-date={iso}>
         {content}
       </div>
     )
