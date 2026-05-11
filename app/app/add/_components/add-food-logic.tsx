@@ -1158,10 +1158,7 @@ export function PendingFoodsSheet({
             )
           })}
         </div>
-        <div
-          className="px-3 py-3"
-          style={{ paddingBottom: "max(env(safe-area-inset-bottom), 0.75rem)" }}
-        >
+        <div className="px-3 pt-3 pb-safe-end">
           <button
             type="button"
             onClick={onCommit}
@@ -1551,6 +1548,9 @@ export function AddFoodLogic({
         void queryClient.invalidateQueries({
           queryKey: ["food-log", "overview"],
         })
+        void queryClient.invalidateQueries({
+          queryKey: foodLogQueryKeys.activity,
+        })
       }
     } finally {
       commitInFlightRef.current = false
@@ -1717,12 +1717,7 @@ export function AddFoodLogic({
         )}
       </div>
 
-      <div
-        className="absolute inset-x-0 bottom-0 z-10 border-t border-border bg-background px-3 py-3"
-        style={{
-          paddingBottom: "max(env(safe-area-inset-bottom), 0.75rem)",
-        }}
-      >
+      <div className="absolute inset-x-0 bottom-0 z-10 border-t border-border bg-background px-3 pt-3 pb-safe-end">
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
             <SearchIcon className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />

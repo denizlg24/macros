@@ -318,7 +318,7 @@ function ServingEditor({
   return (
     <div
       className={cn(
-        "flex-none border-t border-border bg-muted/60 px-2 py-2 text-xs pb-4!"
+        "flex-none border-t border-border bg-muted/60 px-2 pt-2 pb-safe-end text-xs"
       )}
       onClick={(event) => event.stopPropagation()}
     >
@@ -670,7 +670,7 @@ export function NutritionDetailDrawer({
         </div>
 
         {isLoadingNutrition ? (
-          <div className="flex-none border-t border-border bg-background px-3 py-3">
+          <div className="flex-none border-t border-border bg-background px-3 pt-3 pb-safe-end">
             <div className="h-14 animate-pulse rounded-lg bg-muted" />
           </div>
         ) : (

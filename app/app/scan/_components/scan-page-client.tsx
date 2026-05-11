@@ -262,10 +262,7 @@ function ScannerViewport({
         <div className="-right-px -bottom-px absolute size-8 border-white border-r-4 border-b-4" />
         <div className="absolute inset-x-5 top-1/2 h-px bg-white/70 shadow-[0_0_16px_rgba(255,255,255,0.75)]" />
       </div>
-      <div
-        className="absolute inset-x-0 bottom-0 px-4 pb-5"
-        style={{ paddingBottom: "max(env(safe-area-inset-bottom), 1.25rem)" }}
-      >
+      <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/35 to-transparent px-4 pt-10 pb-safe-end">
         <div className="mx-auto flex max-w-sm items-center gap-3 rounded-lg bg-background/92 px-3 py-3 text-foreground shadow-lg backdrop-blur">
           <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-muted">
             {busy ? (

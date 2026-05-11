@@ -288,10 +288,7 @@ export function PlatePageClient() {
         )}
       </div>
 
-      <div
-        className="flex flex-none gap-2 border-t border-border bg-background px-3 py-3"
-        style={{ paddingBottom: "max(env(safe-area-inset-bottom), 0.75rem)" }}
-      >
+      <div className="flex flex-none gap-2 border-t border-border bg-background px-3 pt-3 pb-safe-end">
         <Button
           type="button"
           variant="outline"
@@ -489,10 +486,7 @@ function CreateRecipeDrawer({
             <IngredientListPanel ingredients={ingredients} />
           ) : null}
         </div>
-        <div
-          className="border-t border-border bg-background px-3 py-3"
-          style={{ paddingBottom: "max(env(safe-area-inset-bottom), 0.75rem)" }}
-        >
+        <div className="border-t border-border bg-background px-3 pt-3 pb-safe-end">
           <Button
             type="button"
             onClick={onSave}

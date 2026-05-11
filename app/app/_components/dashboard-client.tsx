@@ -5,8 +5,32 @@ import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useHydrated } from "@/hooks/use-hydrated"
 import { useDashboardData } from "@/lib/app-cache/api"
+import type { FoodLoggingSummary } from "@/lib/food-logging/activity"
+import type { WeightSummary } from "@/lib/weights/contracts"
+import { BodyMetricsSection } from "./body-metrics-section"
+import { HabitsSection } from "./habits-section"
 import { InsightsSection } from "./insights-section"
 import { NutritionSection } from "./nutrition-section"
+
+const emptyWeightSummary: WeightSummary = {
+  last30Days: [],
+  lastSevenEntries: [],
+  latestLogDate: null,
+  latestWeightKg: null,
+  streakDays: 0,
+  trackedLast30Days: [],
+  weekAverageKg: null,
+  weekDifferenceKg: null,
+  weekPoints: [],
+  weighInsThisWeek: 0,
+}
+
+const emptyFoodLoggingSummary: FoodLoggingSummary = {
+  emptyThisWeek: 0,
+  fullThisWeek: 0,
+  last30Days: [],
+  partialThisWeek: 0,
+}
 
 function DashboardFallback() {
   return (
@@ -76,6 +100,8 @@ export function DashboardClient() {
   })
     .format(new Date())
     .toUpperCase()
+  const weightSummary = data.weightSummary ?? emptyWeightSummary
+  const foodLoggingSummary = data.foodLoggingSummary ?? emptyFoodLoggingSummary
 
   return (
     <div className="min-h-screen pb-36 overflow-y-auto">
@@ -102,6 +128,12 @@ export function DashboardClient() {
         energyBalance={data.energyBalance}
         goalProgress={data.goalProgress}
       />
+
+      <HabitsSection
+        foodLoggingSummary={foodLoggingSummary}
+        weightSummary={weightSummary}
+      />
+      <BodyMetricsSection weightSummary={weightSummary} />
 
       <p className="text-center text-xs text-muted-foreground/40 mt-8 pb-2">
         {data.today}
