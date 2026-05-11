@@ -35,7 +35,9 @@ function isFoodLogActivityDay(value: unknown): value is FoodLogActivityDay {
   return (
     typeof obj.date === "string" &&
     typeof obj.calories === "number" &&
-    (obj.status === "empty" || obj.status === "partial" || obj.status === "full")
+    (obj.status === "empty" ||
+      obj.status === "partial" ||
+      obj.status === "full")
   )
 }
 
