@@ -581,10 +581,7 @@ export function PendingFoodsSheet({
             )
           })}
         </div>
-        <div
-          className="px-3 py-3"
-          style={{ paddingBottom: "max(env(safe-area-inset-bottom), 0.75rem)" }}
-        >
+        <div className="px-3 pt-3 pb-safe-end">
           <button
             type="button"
             onClick={onCommit}

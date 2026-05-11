@@ -645,10 +645,7 @@ function EditRecipeDrawer({
             </p>
           ) : null}
         </div>
-        <div
-          className="border-t border-border bg-background px-3 py-3"
-          style={{ paddingBottom: "max(env(safe-area-inset-bottom), 0.75rem)" }}
-        >
+        <div className="border-t border-border bg-background px-3 pt-3 pb-safe-end">
           <Button
             type="button"
             onClick={save}

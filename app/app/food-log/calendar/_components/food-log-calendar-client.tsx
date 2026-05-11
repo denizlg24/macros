@@ -15,8 +15,8 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { foodLogQueryKeys } from "@/lib/app-cache/food-log-keys"
-import { MACRO_COLORS } from "@/lib/macro-colors"
 import type { CalendarTotalsPayload } from "@/lib/queries/food-log-calendar-totals"
+import { CalorieDayPill } from "../../_components/calorie-day-pill"
 import { dateToIso, todayIso } from "../../_lib/date-utils"
 
 async function fetchCalendarTotals(
@@ -152,74 +152,29 @@ function DayPill({
   consumed: number
   target: number | null
 }) {
-  const W = 44
-  const H = 56
-  const SW = 2.5
-  const p = SW / 2 + 0.5
-  const rw = W - SW
-  const rh = H - SW
-  const rx = Math.min(rw, rh) / 2
-  const perimeter = 2 * (rw - rh) + Math.PI * rh
-  const startOffset = rw / 2 - rx
-  const fillRatio = target != null && target > 0 ? consumed / target : 0
-  const fillLength = Math.min(fillRatio, 1) * perimeter
-  const content = (
-    <div
-      className={`relative mx-auto flex flex-col items-center justify-center text-[10px] leading-tight transition-opacity ${
-        isFuture || isDimmed ? "opacity-35" : ""
-      }`}
-      style={{ width: W, height: H }}
-    >
-      <svg
-        viewBox={`0 0 ${W} ${H}`}
-        width={W}
-        height={H}
-        className="absolute inset-0"
-        aria-hidden="true"
-      >
-        <rect
-          x={p}
-          y={p}
-          width={rw}
-          height={rh}
-          rx={rx}
-          fill="none"
-          className="stroke-border"
-          strokeWidth={SW}
-        />
-        {fillLength > 0 ? (
-          <rect
-            x={p}
-            y={p}
-            width={rw}
-            height={rh}
-            rx={rx}
-            fill="none"
-            stroke={MACRO_COLORS.calories}
-            strokeWidth={SW}
-            strokeDasharray={`${fillLength} ${perimeter}`}
-            strokeDashoffset={-startOffset}
-            strokeLinecap="round"
-          />
-        ) : null}
-      </svg>
-      <span className="relative font-medium text-muted-foreground">
-        {format(date, "EEEEE")}
-      </span>
-      <span className="relative text-sm font-semibold tabular-nums">
-        {format(date, "d")}
-      </span>
-    </div>
-  )
-
   if (isFuture || isAfter(date, new Date())) {
-    return <div aria-disabled="true">{content}</div>
+    return (
+      <CalorieDayPill
+        consumed={consumed}
+        date={date}
+        iso={iso}
+        isDimmed={isDimmed}
+        isDisabled
+        target={target}
+      />
+    )
   }
 
   return (
-    <Link href={`/app/food-log?date=${iso}`} aria-label={format(date, "PPPP")}>
-      {content}
-    </Link>
+    <CalorieDayPill
+      ariaLabel={format(date, "PPPP")}
+      consumed={consumed}
+      date={date}
+      href={`/app/food-log?date=${iso}`}
+      iso={iso}
+      isDimmed={isDimmed}
+      target={target}
+    />
   )
 }
 

@@ -230,6 +230,9 @@ export function useLogPendingFoods({
         void queryClient.invalidateQueries({
           queryKey: ["food-log", "overview"],
         })
+        void queryClient.invalidateQueries({
+          queryKey: foodLogQueryKeys.activity,
+        })
       }
     } finally {
       commitInFlightRef.current = false

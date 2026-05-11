@@ -30,7 +30,7 @@ export default async function AppLayout({
   return (
     <QueryProvider userId={session.user.id}>
       <TimezoneSync initialTimezone={userProfile.timezone} />
-      {children}
+      <main className="pb-safe-end">{children}</main>
       <DashboardHeader />
     </QueryProvider>
   )

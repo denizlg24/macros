@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useHydrated } from "@/hooks/use-hydrated"
 import { foodLogQueryKeys } from "@/lib/app-cache/food-log-keys"
+import { queryKeys } from "@/lib/app-cache/query-keys"
 import type { FoodLogDayPayload } from "@/lib/queries/food-log-day"
 import type { WeekTotalsPayload } from "@/lib/queries/food-log-week-totals"
 import { shiftIso, todayIso, weekDaysFor } from "../_lib/date-utils"
@@ -137,7 +138,10 @@ export function FoodLogClient() {
       await queryClient.invalidateQueries({
         queryKey: foodLogQueryKeys.weekTotals(weekStart, weekEnd),
       })
-      await queryClient.invalidateQueries({ queryKey: ["app", "dashboard"] })
+      await queryClient.invalidateQueries({
+        queryKey: foodLogQueryKeys.activity,
+      })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.dashboard })
       await queryClient.invalidateQueries({
         queryKey: ["app", "calorie-summary"],
       })

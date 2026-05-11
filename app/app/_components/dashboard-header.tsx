@@ -3,14 +3,29 @@
 import {
   Apple,
   Barcode,
+  BookOpen,
+  ChefHat,
   CircleEllipsisIcon,
+  Dumbbell,
   LayoutTemplate,
+  Plus,
+  Scale,
   Search,
   Shapes,
+  X,
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
+import {
+  Drawer,
+  DrawerClose,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from "@/components/ui/drawer"
 import { cn } from "@/lib/utils"
 
 type NavLinkProps = {
@@ -41,44 +56,56 @@ function NavLink({ href, icon: Icon, label, active }: NavLinkProps) {
   )
 }
 
+function ShortcutButton({
+  href,
+  icon: Icon,
+  label,
+}: {
+  href: string
+  icon: React.ComponentType<{ className?: string }>
+  label: string
+}) {
+  return (
+    <DrawerClose asChild>
+      <Link href={href} className="flex flex-col items-center gap-2">
+        <span className="flex size-12 items-center justify-center rounded-full bg-muted">
+          <Icon className="size-6" />
+        </span>
+        <span className="text-xs font-medium">{label}</span>
+      </Link>
+    </DrawerClose>
+  )
+}
+
+function ShortcutRow({
+  href,
+  icon: Icon,
+  label,
+}: {
+  href: string
+  icon: React.ComponentType<{ className?: string }>
+  label: string
+}) {
+  return (
+    <DrawerClose asChild>
+      <Link
+        href={href}
+        className="flex items-center gap-4 border-b border-border/70 py-4 last:border-b-0"
+      >
+        <Icon className="size-5 shrink-0" />
+        <span className="min-w-0 flex-1 text-base font-medium">{label}</span>
+        <span className="text-2xl leading-none text-muted-foreground">›</span>
+      </Link>
+    </DrawerClose>
+  )
+}
+
 export function DashboardHeader() {
   const pathname = usePathname()
 
   return (
-    <header className="fixed bottom-0 left-0 right-0 z-10 bg-background border-t">
-      <div className="px-4 py-2 max-w-sm mx-auto">
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1">
-            <Link
-              href="/app/add?focus=search"
-              className="absolute inset-0 rounded-full"
-              aria-label="Search for a food"
-            />
-            <div className="pointer-events-none flex items-center gap-3 h-11 px-4 rounded-full bg-muted text-muted-foreground text-sm">
-              <Search className="size-4 shrink-0" />
-              <span className="flex-1">Search for a food</span>
-              <span className="size-8" />
-            </div>
-            <Link
-              href="/app/scan"
-              aria-label="Scan barcode"
-              className="pointer-events-auto absolute right-2 top-1/2 -translate-y-1/2 flex items-center justify-center size-8 rounded-full hover:bg-muted-foreground/10 transition-colors z-10"
-            >
-              <Barcode className="size-4 text-muted-foreground" />
-            </Link>
-          </div>
-
-          {/* <Link
-            href="/app/ai"
-            aria-label="AI assistant"
-            className="size-11 rounded-full bg-muted flex items-center justify-center shrink-0 hover:bg-muted/80 transition-colors"
-          >
-            <Sparkles className="size-5 text-muted-foreground" />
-          </Link> */}
-        </div>
-      </div>
-
-      <div className="w-full max-w-sm mx-auto grid grid-cols-4 items-center px-2 pb-4">
+    <header className="fixed inset-x-0 bottom-0 z-10 border-t bg-background">
+      <div className="mx-auto grid w-full max-w-sm grid-cols-5 items-end px-2 pt-2 pb-safe-end">
         <NavLink
           href="/app"
           icon={LayoutTemplate}
@@ -91,6 +118,68 @@ export function DashboardHeader() {
           label="Food Log"
           active={pathname === "/app/food-log"}
         />
+
+        <Drawer>
+          <DrawerTrigger asChild>
+            <button
+              type="button"
+              aria-label="Open shortcuts"
+              className="mx-auto mb-1 flex size-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg"
+            >
+              <Plus className="size-6" />
+            </button>
+          </DrawerTrigger>
+          <DrawerContent className="max-h-[72dvh]! rounded-t-3xl pb-safe-end">
+            <DrawerHeader className="grid grid-cols-[auto_1fr_auto] items-center border-b border-border/70 px-5 pb-4 text-center">
+              <DrawerClose asChild>
+                <button
+                  type="button"
+                  className="flex size-9 items-center justify-center"
+                  aria-label="Close shortcuts"
+                >
+                  <X className="size-6" />
+                </button>
+              </DrawerClose>
+              <div>
+                <DrawerTitle className="text-xl font-bold">
+                  Shortcuts
+                </DrawerTitle>
+                <DrawerDescription className="sr-only">
+                  Choose what to add or open.
+                </DrawerDescription>
+              </div>
+              <span className="size-9" aria-hidden="true" />
+            </DrawerHeader>
+
+            <div className="grid grid-cols-3 gap-3 px-8 py-5">
+              <ShortcutButton
+                href="/app/weigh-in?log=today"
+                icon={Scale}
+                label="Weight"
+              />
+              <ShortcutButton
+                href="/app/add?focus=search"
+                icon={Search}
+                label="Search"
+              />
+              <ShortcutButton href="/app/scan" icon={Barcode} label="Barcode" />
+            </div>
+
+            <div className="px-8">
+              <ShortcutRow
+                href="/app/foods"
+                icon={ChefHat}
+                label="Your Foods"
+              />
+              <ShortcutRow href="/app/weight" icon={Dumbbell} label="Metrics" />
+              <ShortcutRow
+                href="/app/recipes"
+                icon={BookOpen}
+                label="Recipes"
+              />
+            </div>
+          </DrawerContent>
+        </Drawer>
 
         <NavLink
           href="/app/strategy"

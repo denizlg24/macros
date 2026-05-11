@@ -491,10 +491,7 @@ function EditFoodDrawer({
           </section>
         </div>
 
-        <div
-          className="flex flex-none gap-2 border-t border-border bg-background px-3 py-3"
-          style={{ paddingBottom: "max(env(safe-area-inset-bottom), 0.75rem)" }}
-        >
+        <div className="flex flex-none gap-2 border-t border-border bg-background px-3 pt-3 pb-safe-end">
           <Button
             type="button"
             onClick={save}
@@ -847,10 +844,9 @@ function FoodsLogic({
 
       <div
         className={cn(
-          "absolute inset-x-0 bottom-0 z-10 border-t border-border bg-background px-3 py-3",
+          "absolute inset-x-0 bottom-0 z-10 border-t border-border bg-background px-3 pt-3 pb-safe-end",
           pendingFoods.length === 0 && "hidden"
         )}
-        style={{ paddingBottom: "max(env(safe-area-inset-bottom), 0.75rem)" }}
       >
         <Button
           type="button"

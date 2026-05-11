@@ -4,6 +4,7 @@ import { type QueryClient, useQuery } from "@tanstack/react-query"
 import type { FoodHistoryItem } from "@/lib/foods/contracts"
 import type { DailyCalorieSummary } from "@/lib/queries/calorie-summary"
 import type { DashboardData } from "@/lib/queries/dashboard"
+import type { WeightOverview } from "@/lib/weights/contracts"
 import { queryKeys } from "./query-keys"
 
 interface DashboardResponse {
@@ -18,6 +19,11 @@ interface CalorieSummaryResponse {
 
 interface FoodHistoryResponse {
   items: FoodHistoryItem[]
+  fetchedAt: string
+}
+
+interface WeightOverviewResponse {
+  overview: WeightOverview
   fetchedAt: string
 }
 
@@ -65,6 +71,19 @@ export function useFoodHistory(limit = 20) {
         `/api/foods/history?limit=${limit}`,
         signal
       ),
+  })
+}
+
+export function useWeightOverview() {
+  return useQuery({
+    queryKey: queryKeys.weightOverview,
+    queryFn: async ({ signal }) => {
+      const body = await fetchJson<WeightOverviewResponse>(
+        "/api/weight/overview",
+        signal
+      )
+      return body.overview
+    },
   })
 }
 

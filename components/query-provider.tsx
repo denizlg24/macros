@@ -35,7 +35,7 @@ export function QueryProvider({ children, userId }: QueryProviderProps) {
     <PersistQueryClientProvider
       client={queryClient}
       persistOptions={{
-        buster: `macros-app-cache-v1:${userId}`,
+        buster: `macros-app-cache-v4:${userId}`,
         maxAge: gcTime,
         persister,
       }}

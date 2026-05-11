@@ -539,10 +539,7 @@ export function CreateFoodDrawer({
           )}
         </div>
 
-        <div
-          className="flex flex-none items-center gap-2 border-t border-border bg-background px-3 py-3"
-          style={{ paddingBottom: "max(env(safe-area-inset-bottom), 0.75rem)" }}
-        >
+        <div className="flex flex-none items-center gap-2 border-t border-border bg-background px-3 pt-3 pb-safe-end">
           {step < 3 ? (
             <Button
               type="button"
