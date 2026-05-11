@@ -29,6 +29,45 @@ import { PageHeader } from "../../_components/page-header"
 import { YearHeatmapCarousel } from "../../_components/year-heatmap"
 import { CalorieDayPill } from "../_components/calorie-day-pill"
 
+function isFoodLogActivityDay(value: unknown): value is FoodLogActivityDay {
+  if (typeof value !== "object" || value === null) return false
+  const obj = value as Record<string, unknown>
+  return (
+    typeof obj.date === "string" &&
+    typeof obj.calories === "number" &&
+    (obj.status === "empty" || obj.status === "partial" || obj.status === "full")
+  )
+}
+
+function isFoodLoggingSummary(value: unknown): boolean {
+  if (typeof value !== "object" || value === null) return false
+  const obj = value as Record<string, unknown>
+  return (
+    Array.isArray(obj.last30Days) &&
+    obj.last30Days.every(isFoodLogActivityDay) &&
+    typeof obj.fullThisWeek === "number" &&
+    typeof obj.partialThisWeek === "number" &&
+    typeof obj.emptyThisWeek === "number"
+  )
+}
+
+export function isFoodLogActivityOverview(
+  value: unknown
+): value is FoodLogActivityOverview {
+  if (typeof value !== "object" || value === null) return false
+  const obj = value as Record<string, unknown>
+  return (
+    typeof obj.today === "string" &&
+    typeof obj.timezone === "string" &&
+    (obj.calorieTarget === null || typeof obj.calorieTarget === "number") &&
+    Array.isArray(obj.years) &&
+    obj.years.every((y) => typeof y === "number") &&
+    Array.isArray(obj.days) &&
+    obj.days.every(isFoodLogActivityDay) &&
+    isFoodLoggingSummary(obj.summary)
+  )
+}
+
 async function fetchActivity(
   signal?: AbortSignal
 ): Promise<FoodLogActivityOverview> {
@@ -38,10 +77,24 @@ async function fetchActivity(
   })
   if (!response.ok)
     throw new Error(`Failed to load activity (${response.status})`)
-  const body = (await response.json()) as {
-    activity: FoodLogActivityOverview
+  const body: unknown = await response.json()
+  if (
+    typeof body !== "object" ||
+    body === null ||
+    !("activity" in body) ||
+    body.activity === null
+  ) {
+    throw new Error(
+      "Invalid response: expected object with non-null activity property"
+    )
   }
-  return body.activity
+  const payload = body as { activity: unknown }
+  if (!isFoodLogActivityOverview(payload.activity)) {
+    throw new Error(
+      "Invalid response: activity does not match FoodLogActivityOverview shape"
+    )
+  }
+  return payload.activity
 }
 
 export function FoodLogActivityClient() {
