@@ -13,7 +13,7 @@ import {
   startOfWeek,
   subMonths,
 } from "date-fns"
-import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react"
+import { ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react"
 import Link from "next/link"
 import { useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
@@ -225,21 +225,13 @@ function MonthOverview({
           </Button>
         </div>
 
-        <button
-          type="button"
-          className="flex h-11 items-center justify-center gap-2 rounded-full bg-muted px-4 text-sm font-medium"
-        >
+        <div className="flex h-11 items-center justify-center rounded-full bg-muted px-4 text-sm font-medium">
           {format(visibleMonth, "MMMM")}
-          <ChevronDown className="size-4 text-primary" />
-        </button>
+        </div>
 
-        <button
-          type="button"
-          className="flex h-11 items-center justify-center gap-2 rounded-full bg-muted px-4 text-sm font-medium"
-        >
+        <div className="flex h-11 items-center justify-center rounded-full bg-muted px-4 text-sm font-medium">
           {format(visibleMonth, "yyyy")}
-          <ChevronDown className="size-4 text-primary" />
-        </button>
+        </div>
       </div>
     </section>
   )

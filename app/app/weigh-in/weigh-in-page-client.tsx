@@ -10,14 +10,7 @@ import {
   startOfMonth,
   subMonths,
 } from "date-fns"
-import {
-  ArrowLeft,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  Trash2,
-  X,
-} from "lucide-react"
+import { ArrowLeft, ChevronLeft, ChevronRight, Trash2, X } from "lucide-react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useMemo, useState } from "react"
@@ -27,7 +20,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { useWeightOverview } from "@/lib/app-cache/api"
 import { queryKeys } from "@/lib/app-cache/query-keys"
 import type { UpsertWeighInBody, WeighInItem } from "@/lib/weights/contracts"
-import { dateToIso, isoToLocalDate, shiftIso } from "@/lib/weights/date-utils"
+import { dateToIso, isoToLocalDate } from "@/lib/weights/date-utils"
 
 async function saveWeighIn(body: UpsertWeighInBody): Promise<WeighInItem> {
   const response = await fetch("/api/weight/weigh-ins", {
@@ -227,13 +220,11 @@ export function WeighInPageClient() {
               <ChevronRight className="size-5" />
             </Button>
           </div>
-          <div className="flex items-center justify-center gap-2 rounded-full bg-muted px-4 text-sm">
+          <div className="flex items-center justify-center rounded-full bg-muted px-4 text-sm">
             {format(visibleMonth, "MMMM")}
-            <ChevronDown className="size-4" />
           </div>
-          <div className="flex items-center justify-center gap-2 rounded-full bg-muted px-4 text-sm">
+          <div className="flex items-center justify-center rounded-full bg-muted px-4 text-sm">
             {format(visibleMonth, "yyyy")}
-            <ChevronDown className="size-4" />
           </div>
         </div>
       </section>
