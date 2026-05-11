@@ -1,7 +1,7 @@
 "use client"
 
 import { format, subDays, subMonths, subYears } from "date-fns"
-import { ArrowLeft, Pencil, Plus, Scale } from "lucide-react"
+import { Pencil, Plus, Scale } from "lucide-react"
 import Link from "next/link"
 import { useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
@@ -10,6 +10,7 @@ import { useWeightOverview } from "@/lib/app-cache/api"
 import type { WeighInItem, WeightPoint } from "@/lib/weights/contracts"
 import { dateToIso, isoToLocalDate } from "@/lib/weights/date-utils"
 import { BigStat } from "../_components/big-stat"
+import { PageHeader } from "../_components/page-header"
 
 const RANGES = ["1W", "1M", "3M", "6M", "1Y", "All"] as const
 type Range = (typeof RANGES)[number]
@@ -55,19 +56,17 @@ export function WeightPageClient() {
 
   return (
     <div className="min-h-dvh bg-background pb-36">
-      <header className="grid grid-cols-[auto_1fr_auto] items-center gap-3 px-4 pt-5 pb-2">
-        <Button asChild type="button" variant="ghost" size="icon">
-          <Link href="/app" aria-label="Back to dashboard">
-            <ArrowLeft className="size-5" />
-          </Link>
-        </Button>
-        <h1 className="text-center text-xl font-bold">Scale Weight</h1>
-        <Button asChild type="button" variant="ghost" size="icon">
-          <Link href="/app/weigh-in?log=today" aria-label="Add weigh-in">
-            <Plus className="size-6" />
-          </Link>
-        </Button>
-      </header>
+      <PageHeader
+        title="Scale Weight"
+        backLabel="Back to dashboard"
+        action={
+          <Button asChild type="button" variant="ghost" size="icon">
+            <Link href="/app/weigh-in?log=today" aria-label="Add weigh-in">
+              <Plus className="size-6" />
+            </Link>
+          </Button>
+        }
+      />
 
       <section className="px-5 pt-4">
         <div className="grid grid-cols-[1fr_1fr_auto] gap-5">

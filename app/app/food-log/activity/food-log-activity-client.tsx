@@ -13,8 +13,7 @@ import {
   startOfWeek,
   subMonths,
 } from "date-fns"
-import { ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react"
-import Link from "next/link"
+import { ChevronLeft, ChevronRight } from "lucide-react"
 import { useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -26,6 +25,7 @@ import type {
 } from "@/lib/food-logging/activity"
 import { dateToIso, isoToLocalDate } from "@/lib/weights/date-utils"
 import { BigStat } from "../../_components/big-stat"
+import { PageHeader } from "../../_components/page-header"
 import { YearHeatmapCarousel } from "../../_components/year-heatmap"
 import { CalorieDayPill } from "../_components/calorie-day-pill"
 
@@ -75,15 +75,7 @@ export function FoodLogActivityClient() {
 
   return (
     <div className="min-h-dvh bg-background pb-36">
-      <header className="grid grid-cols-[auto_1fr_auto] items-center gap-3 px-4 pt-5 pb-3">
-        <Button asChild type="button" variant="ghost" size="icon">
-          <Link href="/app" aria-label="Back to dashboard">
-            <ArrowLeft className="size-5" />
-          </Link>
-        </Button>
-        <h1 className="text-center text-xl font-bold">Food Logging</h1>
-        <span className="size-9" />
-      </header>
+      <PageHeader title="Food Logging" backLabel="Back to dashboard" />
 
       <main>
         <section className="grid grid-cols-2 px-5 py-5">

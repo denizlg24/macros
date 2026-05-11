@@ -10,8 +10,7 @@ import {
   startOfMonth,
   subMonths,
 } from "date-fns"
-import { ArrowLeft, ChevronLeft, ChevronRight, Trash2, X } from "lucide-react"
-import Link from "next/link"
+import { ChevronLeft, ChevronRight, Trash2, X } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
@@ -22,6 +21,7 @@ import { queryKeys } from "@/lib/app-cache/query-keys"
 import type { UpsertWeighInBody, WeighInItem } from "@/lib/weights/contracts"
 import { dateToIso, isoToLocalDate } from "@/lib/weights/date-utils"
 import { BigStat } from "../_components/big-stat"
+import { PageHeader } from "../_components/page-header"
 import { YearHeatmapCarousel } from "../_components/year-heatmap"
 
 async function saveWeighIn(body: UpsertWeighInBody): Promise<WeighInItem> {
@@ -139,15 +139,7 @@ export function WeighInPageClient() {
 
   return (
     <div className="min-h-dvh bg-background pb-36">
-      <header className="grid grid-cols-[auto_1fr_auto] items-center gap-3 px-4 pt-5 pb-3">
-        <Button asChild type="button" variant="ghost" size="icon">
-          <Link href="/app" aria-label="Back to dashboard">
-            <ArrowLeft className="size-5" />
-          </Link>
-        </Button>
-        <h1 className="text-center text-xl font-bold">Weigh-In</h1>
-        <span className="size-9" />
-      </header>
+      <PageHeader title="Weigh-In" backLabel="Back to dashboard" />
 
       <section className="grid grid-cols-2 px-5 py-5">
         <BigStat
