@@ -1,16 +1,26 @@
 "use client"
 
-import { format } from "date-fns"
+import { format, subDays, subMonths, subYears } from "date-fns"
 import { ArrowLeft, Pencil, Plus, Scale } from "lucide-react"
 import Link from "next/link"
+import { useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useWeightOverview } from "@/lib/app-cache/api"
-import type { WeightPoint } from "@/lib/weights/contracts"
-import { isoToLocalDate } from "@/lib/weights/date-utils"
+import type { WeighInItem, WeightPoint } from "@/lib/weights/contracts"
+import { dateToIso, isoToLocalDate } from "@/lib/weights/date-utils"
+
+const RANGES = ["1W", "1M", "3M", "6M", "1Y", "All"] as const
+type Range = (typeof RANGES)[number]
 
 export function WeightPageClient() {
   const { data, isLoading, isError, refetch } = useWeightOverview()
+  const [range, setRange] = useState<Range>("1W")
+
+  const filtered = useMemo(() => {
+    if (!data) return null
+    return filterEntries(data.entries, range, data.today)
+  }, [data, range])
 
   if (isLoading || !data) {
     return (
@@ -31,7 +41,15 @@ export function WeightPageClient() {
     )
   }
 
-  const summary = data.summary
+  const points = filtered?.points ?? []
+  const averageKg = points.length
+    ? points.reduce((sum, point) => sum + point.weightKg, 0) / points.length
+    : null
+  const differenceKg =
+    points.length >= 2
+      ? points[points.length - 1].weightKg - points[0].weightKg
+      : null
+  const rangeLabel = filtered ? buildRangeLabel(filtered, range) : ""
   const entriesByMonth = groupEntriesByMonth(data.entries)
 
   return (
@@ -42,7 +60,7 @@ export function WeightPageClient() {
             <ArrowLeft className="size-5" />
           </Link>
         </Button>
-        <h1 className="text-center text-xl font-medium">Scale Weight</h1>
+        <h1 className="text-center text-xl font-bold">Scale Weight</h1>
         <Button asChild type="button" variant="ghost" size="icon">
           <Link href="/app/weigh-in?log=today" aria-label="Add weigh-in">
             <Plus className="size-6" />
@@ -55,17 +73,15 @@ export function WeightPageClient() {
           <div>
             <p className="text-sm text-muted-foreground">Average</p>
             <p className="mt-1 text-4xl font-light tabular-nums">
-              {summary.weekAverageKg?.toFixed(1) ?? "--"}{" "}
+              {averageKg?.toFixed(1) ?? "--"}{" "}
               <span className="text-base text-muted-foreground">kg</span>
             </p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {weekRangeLabel(data.today)}
-            </p>
+            <p className="mt-1 text-sm text-muted-foreground">{rangeLabel}</p>
           </div>
           <div>
             <p className="text-sm text-muted-foreground">Difference</p>
             <p className="mt-1 text-4xl font-light tabular-nums">
-              {summary.weekDifferenceKg?.toFixed(1) ?? "--"}{" "}
+              {formatDifference(differenceKg)}{" "}
               <span className="text-base text-muted-foreground">kg</span>
             </p>
           </div>
@@ -74,28 +90,21 @@ export function WeightPageClient() {
           </div>
         </div>
 
-        <WeightChart points={summary.weekPoints} />
+        <WeightChart points={points} />
 
-        <div className="mt-5 flex items-center gap-3">
-          <div className="grid flex-1 grid-cols-6 rounded-full bg-muted p-1 text-sm">
-            {["1W", "1M", "3M", "6M", "1Y", "All"].map((range, index) => (
-              <button
-                key={range}
-                type="button"
-                className={`h-10 rounded-full ${
-                  index === 0 ? "bg-foreground text-background" : ""
-                }`}
-              >
-                {range}
-              </button>
-            ))}
-          </div>
-          <button
-            type="button"
-            className="h-12 rounded-full bg-muted px-5 text-sm"
-          >
-            D
-          </button>
+        <div className="mt-5 grid grid-cols-6 rounded-full bg-muted p-1 text-sm">
+          {RANGES.map((option) => (
+            <button
+              key={option}
+              type="button"
+              onClick={() => setRange(option)}
+              className={`h-10 rounded-full transition-colors ${
+                option === range ? "bg-foreground text-background" : ""
+              }`}
+            >
+              {option}
+            </button>
+          ))}
         </div>
       </section>
 
@@ -165,7 +174,7 @@ function WeightChart({ points }: { points: WeightPoint[] }) {
   const max = Math.max(...values)
   const range = Math.max(max - min, 0.5)
   const coords = points.map((point, index) => {
-    const x = points.length === 1 ? 8 : 8 + (index / (points.length - 1)) * 84
+    const x = 8 + (index / (points.length - 1)) * 84
     const y = 75 - ((point.weightKg - min) / range) * 45
     return { x, y }
   })
@@ -213,30 +222,73 @@ function WeightChart({ points }: { points: WeightPoint[] }) {
           {min.toFixed(1)}
         </text>
       </svg>
-      <div className="grid grid-cols-7 text-center text-sm text-muted-foreground">
-        {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => (
-          <span key={day}>{day}</span>
-        ))}
+      <div className="flex justify-between text-xs text-muted-foreground">
+        <span>{format(isoToLocalDate(points[0].date), "d MMM")}</span>
+        <span>
+          {format(isoToLocalDate(points[points.length - 1].date), "d MMM")}
+        </span>
       </div>
     </div>
   )
 }
 
-function weekRangeLabel(today: string): string {
+function filterEntries(
+  entries: WeighInItem[],
+  range: Range,
+  today: string
+): { points: WeightPoint[]; start: string; end: string } {
   const end = isoToLocalDate(today)
-  const start = new Date(end)
-  start.setDate(end.getDate() - 6)
-  return `${format(start, "d MMM")} - ${format(end, "d MMM yyyy")}`
+  const start = rangeStart(end, range, entries)
+  const startIso = dateToIso(start)
+  const endIso = dateToIso(end)
+  const sorted = [...entries].sort((a, b) => a.logDate.localeCompare(b.logDate))
+  const filtered = sorted.filter(
+    (entry) => entry.logDate >= startIso && entry.logDate <= endIso
+  )
+  return {
+    points: filtered.map((entry) => ({
+      date: entry.logDate,
+      weightKg: entry.weightKg,
+    })),
+    start: startIso,
+    end: endIso,
+  }
 }
 
-function groupEntriesByMonth(
-  entries: {
-    id: string
-    logDate: string
-    weightKg: number
-  }[]
-) {
-  const groups = new Map<string, typeof entries>()
+function rangeStart(end: Date, range: Range, entries: WeighInItem[]): Date {
+  if (range === "1W") return subDays(end, 6)
+  if (range === "1M") return subMonths(end, 1)
+  if (range === "3M") return subMonths(end, 3)
+  if (range === "6M") return subMonths(end, 6)
+  if (range === "1Y") return subYears(end, 1)
+  const earliest = entries.reduce<string | null>(
+    (min, entry) => (min === null || entry.logDate < min ? entry.logDate : min),
+    null
+  )
+  return earliest ? isoToLocalDate(earliest) : end
+}
+
+function buildRangeLabel(
+  filtered: { start: string; end: string; points: WeightPoint[] },
+  range: Range
+): string {
+  if (filtered.points.length === 0) return ""
+  const start = isoToLocalDate(filtered.start)
+  const end = isoToLocalDate(filtered.end)
+  if (range === "1W")
+    return `${format(start, "d MMM")} - ${format(end, "d MMM yyyy")}`
+  return `${format(start, "d MMM yyyy")} - ${format(end, "d MMM yyyy")}`
+}
+
+function formatDifference(value: number | null): string {
+  if (value === null) return "--"
+  const fixed = value.toFixed(1)
+  if (value > 0) return `+${fixed}`
+  return fixed
+}
+
+function groupEntriesByMonth(entries: WeighInItem[]) {
+  const groups = new Map<string, WeighInItem[]>()
   for (const entry of entries) {
     const label = format(isoToLocalDate(entry.logDate), "MMMM yyyy")
     groups.set(label, [...(groups.get(label) ?? []), entry])
