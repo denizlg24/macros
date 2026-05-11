@@ -134,10 +134,6 @@ export function DashboardClient() {
         weightSummary={weightSummary}
       />
       <BodyMetricsSection weightSummary={weightSummary} />
-
-      <p className="text-center text-xs text-muted-foreground/40 mt-8 pb-2">
-        {data.today}
-      </p>
     </div>
   )
 }

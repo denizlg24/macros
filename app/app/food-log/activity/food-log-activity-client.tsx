@@ -25,6 +25,7 @@ import type {
   FoodLogDayStatus,
 } from "@/lib/food-logging/activity"
 import { dateToIso, isoToLocalDate } from "@/lib/weights/date-utils"
+import { BigStat } from "../../_components/big-stat"
 import { YearHeatmapCarousel } from "../../_components/year-heatmap"
 import { CalorieDayPill } from "../_components/calorie-day-pill"
 
@@ -123,28 +124,6 @@ function ActivityLoading() {
         <Skeleton className="h-20 rounded-xl" />
       </div>
       <Skeleton className="h-[440px] w-full rounded-2xl" />
-    </div>
-  )
-}
-
-function BigStat({
-  label,
-  suffix,
-  value,
-}: {
-  label: string
-  suffix: string
-  value: string
-}) {
-  return (
-    <div>
-      <p className="text-sm text-muted-foreground">{label}</p>
-      <p className="mt-1 flex items-baseline gap-1.5">
-        <span className="text-3xl font-light leading-none tabular-nums">
-          {value}
-        </span>
-        <span className="text-base text-muted-foreground">{suffix}</span>
-      </p>
     </div>
   )
 }

@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { useWeightOverview } from "@/lib/app-cache/api"
 import type { WeighInItem, WeightPoint } from "@/lib/weights/contracts"
 import { dateToIso, isoToLocalDate } from "@/lib/weights/date-utils"
+import { BigStat } from "../_components/big-stat"
 
 const RANGES = ["1W", "1M", "3M", "6M", "1Y", "All"] as const
 type Range = (typeof RANGES)[number]
@@ -70,21 +71,17 @@ export function WeightPageClient() {
 
       <section className="px-5 pt-4">
         <div className="grid grid-cols-[1fr_1fr_auto] gap-5">
-          <div>
-            <p className="text-sm text-muted-foreground">Average</p>
-            <p className="mt-1 text-4xl font-light tabular-nums">
-              {averageKg?.toFixed(1) ?? "--"}{" "}
-              <span className="text-base text-muted-foreground">kg</span>
-            </p>
-            <p className="mt-1 text-sm text-muted-foreground">{rangeLabel}</p>
-          </div>
-          <div>
-            <p className="text-sm text-muted-foreground">Difference</p>
-            <p className="mt-1 text-4xl font-light tabular-nums">
-              {formatDifference(differenceKg)}{" "}
-              <span className="text-base text-muted-foreground">kg</span>
-            </p>
-          </div>
+          <BigStat
+            label="Average"
+            value={averageKg?.toFixed(1) ?? "--"}
+            suffix="kg"
+            caption={rangeLabel}
+          />
+          <BigStat
+            label="Difference"
+            value={formatDifference(differenceKg)}
+            suffix="kg"
+          />
           <div className="flex size-14 items-center justify-center rounded-full bg-muted">
             <Scale className="size-6 text-primary" />
           </div>

@@ -21,6 +21,7 @@ import { useWeightOverview } from "@/lib/app-cache/api"
 import { queryKeys } from "@/lib/app-cache/query-keys"
 import type { UpsertWeighInBody, WeighInItem } from "@/lib/weights/contracts"
 import { dateToIso, isoToLocalDate } from "@/lib/weights/date-utils"
+import { BigStat } from "../_components/big-stat"
 import { YearHeatmapCarousel } from "../_components/year-heatmap"
 
 async function saveWeighIn(body: UpsertWeighInBody): Promise<WeighInItem> {
@@ -149,20 +150,16 @@ export function WeighInPageClient() {
       </header>
 
       <section className="grid grid-cols-2 px-5 py-5">
-        <div>
-          <p className="text-sm text-muted-foreground">Today</p>
-          <p className="mt-1 text-3xl font-light tabular-nums">
-            {todayEntry ? todayEntry.weightKg.toFixed(1) : "--"}{" "}
-            <span className="text-base text-muted-foreground">kg</span>
-          </p>
-        </div>
-        <div>
-          <p className="text-sm text-muted-foreground">Streak</p>
-          <p className="mt-1 text-3xl font-light tabular-nums">
-            {data.summary.streakDays}{" "}
-            <span className="text-base text-muted-foreground">days</span>
-          </p>
-        </div>
+        <BigStat
+          label="Today"
+          value={todayEntry ? todayEntry.weightKg.toFixed(1) : "--"}
+          suffix="kg"
+        />
+        <BigStat
+          label="Streak"
+          value={data.summary.streakDays.toString()}
+          suffix={data.summary.streakDays === 1 ? "day" : "days"}
+        />
       </section>
 
       <section className="px-4">
