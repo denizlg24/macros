@@ -21,6 +21,7 @@ import { useWeightOverview } from "@/lib/app-cache/api"
 import { queryKeys } from "@/lib/app-cache/query-keys"
 import type { UpsertWeighInBody, WeighInItem } from "@/lib/weights/contracts"
 import { dateToIso, isoToLocalDate } from "@/lib/weights/date-utils"
+import { YearHeatmapCarousel } from "../_components/year-heatmap"
 
 async function saveWeighIn(body: UpsertWeighInBody): Promise<WeighInItem> {
   const response = await fetch("/api/weight/weigh-ins", {
@@ -242,7 +243,12 @@ export function WeighInPageClient() {
         </div>
       </section>
 
-      <YearHeatmapCarousel years={trackedYears} trackedDates={trackedDates} />
+      <YearHeatmapCarousel
+        years={trackedYears}
+        getCellClass={(iso) =>
+          trackedDates.has(iso) ? "bg-primary" : "bg-muted-foreground/15"
+        }
+      />
 
       {selectedDate ? (
         <div
@@ -335,80 +341,6 @@ function monthGrid(month: Date): Date[] {
   const mondayOffset = (getDay(start) + 6) % 7
   const first = addDays(start, -mondayOffset)
   return Array.from({ length: 42 }, (_, index) => addDays(first, index))
-}
-
-function YearHeatmapCarousel({
-  years,
-  trackedDates,
-}: {
-  years: number[]
-  trackedDates: Set<string>
-}) {
-  if (years.length === 0) return null
-
-  return (
-    <section className="pb-8">
-      <div className="flex snap-x snap-mandatory gap-4 overflow-x-auto px-5 pb-2">
-        {years.map((year) => (
-          <YearHeatmap key={year} year={year} trackedDates={trackedDates} />
-        ))}
-      </div>
-    </section>
-  )
-}
-
-function YearHeatmap({
-  year,
-  trackedDates,
-}: {
-  year: number
-  trackedDates: Set<string>
-}) {
-  const months = Array.from({ length: 12 }, (_, monthIndex) => {
-    const month = new Date(year, monthIndex, 1)
-    const daysInMonth = new Date(year, monthIndex + 1, 0).getDate()
-    return {
-      label: format(month, "MMM"),
-      days: Array.from({ length: daysInMonth }, (_, dayIndex) =>
-        dateToIso(new Date(year, monthIndex, dayIndex + 1))
-      ),
-    }
-  })
-
-  return (
-    <article className="min-w-full snap-center">
-      <h2 className="mb-3 text-2xl font-bold">{year}</h2>
-      <div className="rounded-2xl bg-muted/40 p-2">
-        <div className="grid grid-cols-12 gap-1">
-          {months.map((month) => (
-            <div key={month.label} className="flex min-w-0 flex-col gap-2">
-              <div className="grid grid-cols-4 gap-[3px]">
-                {month.days.map((date) => (
-                  <span
-                    key={date}
-                    className={`aspect-square ${
-                      trackedDates.has(date)
-                        ? "bg-primary"
-                        : "bg-muted-foreground/15"
-                    }`}
-                  />
-                ))}
-                {Array.from({ length: 32 - month.days.length }, (_, index) => (
-                  <span
-                    key={`${month.label}-empty-${index}`}
-                    className="aspect-square opacity-0"
-                  />
-                ))}
-              </div>
-              <span className="text-[9px] text-muted-foreground">
-                {month.label}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </article>
-  )
 }
 
 function NumberPad({

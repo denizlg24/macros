@@ -24,6 +24,8 @@ import type {
   FoodLogActivityOverview,
   FoodLogDayStatus,
 } from "@/lib/food-logging/activity"
+import { dateToIso, isoToLocalDate } from "@/lib/weights/date-utils"
+import { YearHeatmapCarousel } from "../../_components/year-heatmap"
 import { CalorieDayPill } from "../_components/calorie-day-pill"
 
 async function fetchActivity(
@@ -161,7 +163,7 @@ function MonthOverview({
   visibleMonth: Date
 }) {
   const days = useMemo(() => buildCalendarMonth(visibleMonth), [visibleMonth])
-  const todayDate = isoToDate(today)
+  const todayDate = isoToLocalDate(today)
 
   return (
     <section className="px-4">
@@ -274,66 +276,11 @@ function FoodLogHistoryCarousel({ days }: { days: FoodLogActivityDay[] }) {
   ).sort((a, b) => b - a)
   const dayByDate = new Map(days.map((day) => [day.date, day]))
 
-  if (trackedYears.length === 0) return null
-
   return (
-    <section className="pb-8">
-      <div className="flex snap-x snap-mandatory gap-4 overflow-x-auto px-5 pb-2">
-        {trackedYears.map((year) => (
-          <FoodLogYearHeatmap key={year} dayByDate={dayByDate} year={year} />
-        ))}
-      </div>
-    </section>
-  )
-}
-
-function FoodLogYearHeatmap({
-  dayByDate,
-  year,
-}: {
-  dayByDate: Map<string, FoodLogActivityDay>
-  year: number
-}) {
-  const months = Array.from({ length: 12 }, (_, monthIndex) => {
-    const month = new Date(year, monthIndex, 1)
-    const daysInMonth = new Date(year, monthIndex + 1, 0).getDate()
-    return {
-      label: format(month, "MMM"),
-      days: Array.from({ length: daysInMonth }, (_, dayIndex) =>
-        dateToIso(new Date(year, monthIndex, dayIndex + 1))
-      ),
-    }
-  })
-
-  return (
-    <article className="min-w-full snap-center">
-      <h2 className="mb-3 text-2xl font-bold">{year}</h2>
-      <div className="rounded-xl bg-muted/40 p-2">
-        <div className="grid grid-cols-12 gap-1">
-          {months.map((month) => (
-            <div key={month.label} className="flex min-w-0 flex-col gap-2">
-              <div className="grid grid-cols-4 gap-[3px]">
-                {month.days.map((date) => (
-                  <span
-                    key={date}
-                    className={heatmapCellClass(dayByDate.get(date)?.status)}
-                  />
-                ))}
-                {Array.from({ length: 32 - month.days.length }, (_, index) => (
-                  <span
-                    key={`${month.label}-empty-${index}`}
-                    className="aspect-square opacity-0"
-                  />
-                ))}
-              </div>
-              <span className="text-[9px] text-muted-foreground">
-                {month.label}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </article>
+    <YearHeatmapCarousel
+      years={trackedYears}
+      getCellClass={(iso) => heatmapCellClass(dayByDate.get(iso)?.status)}
+    />
   )
 }
 
@@ -350,7 +297,7 @@ function buildCalendarMonth(month: Date) {
 function getCurrentStreak(days: FoodLogActivityDay[], today: string) {
   const dayByDate = new Map(days.map((day) => [day.date, day]))
   let streak = 0
-  for (let iso = today; ; iso = dateToIso(addDays(isoToDate(iso), -1))) {
+  for (let iso = today; ; iso = dateToIso(addDays(isoToLocalDate(iso), -1))) {
     const day = dayByDate.get(iso)
     if (!day || day.status === "empty") break
     streak += 1
@@ -367,17 +314,8 @@ function legendDotClass(status: FoodLogDayStatus) {
 }
 
 function heatmapCellClass(status: FoodLogDayStatus | undefined) {
-  const base = "aspect-square"
-  if (status === "full") return `${base} bg-primary`
+  if (status === "full") return "bg-primary"
   if (status === "partial")
-    return `${base} border border-dashed border-primary bg-primary/15`
-  return `${base} bg-muted-foreground/15`
-}
-
-function isoToDate(iso: string) {
-  return new Date(`${iso}T00:00:00`)
-}
-
-function dateToIso(date: Date) {
-  return format(date, "yyyy-MM-dd")
+    return "border border-dashed border-primary bg-primary/15"
+  return "bg-muted-foreground/15"
 }
