@@ -106,9 +106,7 @@ export function FoodLogActivityClient() {
     staleTime: 60_000,
   })
 
-  const [visibleMonth, setVisibleMonth] = useState(() =>
-    startOfMonth(new Date())
-  )
+  const [visibleMonth, setVisibleMonth] = useState<Date | null>(null)
 
   if (isError) {
     return (
@@ -125,6 +123,8 @@ export function FoodLogActivityClient() {
   }
 
   const dayByDate = new Map(data.days.map((day) => [day.date, day]))
+  const resolvedVisibleMonth =
+    visibleMonth ?? startOfMonth(isoToLocalDate(data.today))
   const todayDay = dayByDate.get(data.today)
   const currentStreak = getCurrentStreak(data.days, data.today)
 
@@ -150,7 +150,7 @@ export function FoodLogActivityClient() {
           calorieTarget={data.calorieTarget}
           dayByDate={dayByDate}
           today={data.today}
-          visibleMonth={visibleMonth}
+          visibleMonth={resolvedVisibleMonth}
           onMonthChange={setVisibleMonth}
         />
 
