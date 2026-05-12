@@ -211,6 +211,17 @@
 }
 
 @layer utilities {
+  .macros-fixed-inset-x {
+    left: max(0px, calc((100vw - var(--app-mobile-width)) / 2));
+    right: max(0px, calc((100vw - var(--app-mobile-width)) / 2));
+  }
+
+  .macros-fixed-inset {
+    inset-block: 0;
+    left: max(0px, calc((100vw - var(--app-mobile-width)) / 2));
+    right: max(0px, calc((100vw - var(--app-mobile-width)) / 2));
+  }
+
   .pb-safe-end {
     padding-bottom: var(--app-safe-end);
   }

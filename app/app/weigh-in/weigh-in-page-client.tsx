@@ -241,7 +241,7 @@ export function WeighInPageClient() {
 
       {selectedDate ? (
         <div
-          className="fixed inset-0 z-30 bg-black/70"
+          className="macros-fixed-inset fixed z-30 bg-black/70"
           role="dialog"
           aria-modal="true"
         >

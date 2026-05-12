@@ -112,7 +112,7 @@ export function AddToHomeScreenPrompt() {
   }
 
   return (
-    <div className="fixed inset-x-0 bottom-4 z-50 mx-auto w-full max-w-[430px] px-4">
+    <div className="macros-fixed-inset-x fixed bottom-4 z-50 px-4">
       <div className="rounded-lg border bg-popover p-4 text-popover-foreground shadow-xl">
         <div className="flex items-start gap-3">
           <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">

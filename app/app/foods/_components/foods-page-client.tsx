@@ -732,7 +732,7 @@ function FoodsLogic({
   return (
     <div
       ref={containerRef}
-      className="fixed inset-x-0 top-0 z-50 flex flex-col overflow-hidden bg-background"
+      className="macros-fixed-inset-x fixed top-0 z-50 flex flex-col overflow-hidden bg-background"
     >
       <div className="flex-none bg-background">
         <HeaderChips
