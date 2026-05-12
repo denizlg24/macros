@@ -1,5 +1,11 @@
 import Link from "next/link"
 import { redirect } from "next/navigation"
+import { pageMetadata } from "@/app/metadata"
+
+export const metadata = pageMetadata(
+  "Verify Email",
+  "Verify your email address to continue setting up Macros."
+)
 
 interface VerifyEmailPageProps {
   searchParams: Promise<{

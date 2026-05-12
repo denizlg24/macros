@@ -6,6 +6,7 @@
 
 :root {
   --app-safe-end: max(env(safe-area-inset-bottom), 1.5rem);
+  --app-mobile-width: 430px;
   --background: oklch(0.9793 0.0029 84.5589);
   --foreground: oklch(0.325 0.0133 145.2614);
   --card: oklch(0.9575 0.0251 111.745);
@@ -196,6 +197,13 @@
     position: relative;
     letter-spacing: var(--tracking-normal);
   }
+  .macros-app-shell {
+    min-height: 100svh;
+    width: min(100%, var(--app-mobile-width));
+    margin-inline: auto;
+    overflow-x: clip;
+    background: var(--background);
+  }
   html.macros-add-food-scroll-lock,
   html.macros-add-food-scroll-lock body {
     overflow: hidden;
@@ -203,6 +211,17 @@
 }
 
 @layer utilities {
+  .macros-fixed-inset-x {
+    left: max(0px, calc((100vw - var(--app-mobile-width)) / 2));
+    right: max(0px, calc((100vw - var(--app-mobile-width)) / 2));
+  }
+
+  .macros-fixed-inset {
+    inset-block: 0;
+    left: max(0px, calc((100vw - var(--app-mobile-width)) / 2));
+    right: max(0px, calc((100vw - var(--app-mobile-width)) / 2));
+  }
+
   .pb-safe-end {
     padding-bottom: var(--app-safe-end);
   }

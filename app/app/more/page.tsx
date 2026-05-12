@@ -1,5 +1,11 @@
 import { ChevronRight, ListChecks, SlidersHorizontal } from "lucide-react"
 import Link from "next/link"
+import { pageMetadata } from "@/app/metadata"
+
+export const metadata = pageMetadata(
+  "More",
+  "Open additional nutrition views and food log settings."
+)
 
 export default function Page() {
   return (

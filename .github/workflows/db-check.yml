@@ -50,7 +50,7 @@ jobs:
           path: ~/.bun/install/cache
           key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
           restore-keys: bun-${{ runner.os }}-
-      - run: bun install --frozen-lockfile
+      - uses: ./.github/actions/bun-install
       - name: Enable pgcrypto
         run: |
           PGPASSWORD=ci psql -h localhost -U ci -d ci -c "create extension if not exists pgcrypto;"

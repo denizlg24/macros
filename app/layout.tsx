@@ -2,9 +2,13 @@ import type { Viewport } from "next"
 import { Geist_Mono, Inter } from "next/font/google"
 
 import "./globals.css"
+import { rootMetadata } from "@/app/metadata"
+import { AddToHomeScreenPrompt } from "@/components/add-to-home-screen-prompt"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/sonner"
 import { cn } from "@/lib/utils"
+
+export const metadata = rootMetadata
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -38,7 +42,8 @@ export default function RootLayout({
     >
       <body>
         <ThemeProvider>
-          {children}
+          <div className="macros-app-shell">{children}</div>
+          <AddToHomeScreenPrompt />
           <Toaster />
         </ThemeProvider>
       </body>
