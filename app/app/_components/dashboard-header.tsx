@@ -104,7 +104,7 @@ export function DashboardHeader() {
   const pathname = usePathname()
 
   return (
-    <header className="fixed inset-x-0 bottom-0 z-10 border-t bg-background">
+    <header className="fixed right-1/2 bottom-0 left-1/2 z-10 w-full max-w-[430px] -translate-x-1/2 border-t bg-background">
       <div className="mx-auto grid w-full max-w-sm grid-cols-5 items-end px-2 pt-2 pb-safe-end">
         <NavLink
           href="/app"
