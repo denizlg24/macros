@@ -1,5 +1,10 @@
 import type { MetadataRoute } from "next"
 
+const iconSizes = [
+  48, 72, 96, 128, 144, 152, 167, 180, 192, 256, 384, 512, 1024,
+]
+const themeIconSizes = [192, 512, 1024]
+
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Macros",
@@ -13,18 +18,30 @@ export default function manifest(): MetadataRoute.Manifest {
     theme_color: "#4b5547",
     orientation: "portrait",
     icons: [
-      {
-        src: "/icon-192.png",
-        sizes: "192x192",
+      ...iconSizes.map((size) => ({
+        src: `/icon-${size}.png`,
+        sizes: `${size}x${size}`,
         type: "image/png",
-        purpose: "maskable",
-      },
-      {
-        src: "/icon-512.png",
-        sizes: "512x512",
+        purpose: "any" as const,
+      })),
+      ...iconSizes.map((size) => ({
+        src: `/icon-transparent-${size}.png`,
+        sizes: `${size}x${size}`,
         type: "image/png",
-        purpose: "maskable",
-      },
+        purpose: "any" as const,
+      })),
+      ...themeIconSizes.map((size) => ({
+        src: `/icon-maskable-${size}.png`,
+        sizes: `${size}x${size}`,
+        type: "image/png",
+        purpose: "maskable" as const,
+      })),
+      ...themeIconSizes.map((size) => ({
+        src: `/icon-monochrome-${size}.png`,
+        sizes: `${size}x${size}`,
+        type: "image/png",
+        purpose: "monochrome" as const,
+      })),
     ],
   }
 }
