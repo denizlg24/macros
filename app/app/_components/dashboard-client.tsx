@@ -34,7 +34,7 @@ const emptyFoodLoggingSummary: FoodLoggingSummary = {
 
 function DashboardFallback() {
   return (
-    <div className="min-h-screen pb-36 overflow-y-auto">
+    <div className="min-h-dvh pb-36">
       <div className="px-5 pt-6 pb-4">
         <Skeleton className="h-3 w-44 mb-2" />
         <Skeleton className="h-8 w-40 mt-1" />
@@ -104,7 +104,7 @@ export function DashboardClient() {
   const foodLoggingSummary = data.foodLoggingSummary ?? emptyFoodLoggingSummary
 
   return (
-    <div className="min-h-screen pb-36 overflow-y-auto">
+    <div className="min-h-dvh pb-36">
       <div className="px-5 pt-6 pb-4">
         <p className="text-xs text-muted-foreground tracking-widest mb-1">
           {dateLabel}

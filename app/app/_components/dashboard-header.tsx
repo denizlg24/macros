@@ -119,7 +119,7 @@ export function DashboardHeader() {
           active={pathname === "/app/food-log"}
         />
 
-        <Drawer>
+        <Drawer shouldScaleBackground={false} repositionInputs={false}>
           <DrawerTrigger asChild>
             <button
               type="button"
