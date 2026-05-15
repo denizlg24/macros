@@ -42,8 +42,8 @@ export function WeighInDrawerForm({
   showHandle = true,
 }: WeighInDrawerFormProps) {
   const queryClient = useQueryClient()
-  const [draftWeight, setDraftWeight] = useState("")
-  const weightValue = draftWeight || (activeEntry?.weightKg.toString() ?? "")
+  const [draftWeight, setDraftWeight] = useState<string | null>(null)
+  const weightValue = draftWeight !== null ? draftWeight : (activeEntry?.weightKg.toString() ?? "")
 
   async function refreshWeightData() {
     await Promise.all([
@@ -55,7 +55,7 @@ export function WeighInDrawerForm({
   const saveMutation = useMutation({
     mutationFn: saveWeighIn,
     onSuccess: async () => {
-      setDraftWeight("")
+      setDraftWeight(null)
       await refreshWeightData()
       onClose()
     },
@@ -64,18 +64,19 @@ export function WeighInDrawerForm({
   const deleteMutation = useMutation({
     mutationFn: deleteWeighIn,
     onSuccess: async () => {
-      setDraftWeight("")
+      setDraftWeight(null)
       await refreshWeightData()
       onClose()
     },
   })
 
   function close() {
-    setDraftWeight("")
+    setDraftWeight(null)
     onClose()
   }
 
   function submit() {
+    if (saveMutation.isPending || deleteMutation.isPending) return
     const normalized = weightValue.replace(",", ".")
     const weightKg = Number(normalized)
     if (!Number.isFinite(weightKg) || weightKg <= 0) return
@@ -94,6 +95,7 @@ export function WeighInDrawerForm({
           size="icon"
           className="size-9"
           onClick={close}
+          aria-label="Close"
         >
           <X className="size-6" />
         </Button>
@@ -108,8 +110,12 @@ export function WeighInDrawerForm({
           variant="ghost"
           size="icon"
           className="size-9"
-          disabled={!activeEntry || deleteMutation.isPending}
-          onClick={() => activeEntry && deleteMutation.mutate(activeEntry.id)}
+          disabled={!activeEntry || deleteMutation.isPending || saveMutation.isPending}
+          onClick={() => {
+            if (!activeEntry || deleteMutation.isPending || saveMutation.isPending) return
+            deleteMutation.mutate(activeEntry.id)
+          }}
+          aria-label="Delete weigh-in"
         >
           <Trash2 className="size-5" />
         </Button>
@@ -144,7 +150,7 @@ export function WeighInDrawerForm({
       <Button
         type="button"
         className="mt-4 h-12 w-full rounded-xl text-base"
-        disabled={saveMutation.isPending || !weightValue}
+        disabled={saveMutation.isPending || deleteMutation.isPending || !weightValue}
         onClick={submit}
       >
         Save
