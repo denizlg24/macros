@@ -43,7 +43,10 @@ export function WeighInDrawerForm({
 }: WeighInDrawerFormProps) {
   const queryClient = useQueryClient()
   const [draftWeight, setDraftWeight] = useState<string | null>(null)
-  const weightValue = draftWeight !== null ? draftWeight : (activeEntry?.weightKg.toString() ?? "")
+  const weightValue =
+    draftWeight !== null
+      ? draftWeight
+      : (activeEntry?.weightKg.toString() ?? "")
 
   async function refreshWeightData() {
     await Promise.all([
@@ -110,9 +113,16 @@ export function WeighInDrawerForm({
           variant="ghost"
           size="icon"
           className="size-9"
-          disabled={!activeEntry || deleteMutation.isPending || saveMutation.isPending}
+          disabled={
+            !activeEntry || deleteMutation.isPending || saveMutation.isPending
+          }
           onClick={() => {
-            if (!activeEntry || deleteMutation.isPending || saveMutation.isPending) return
+            if (
+              !activeEntry ||
+              deleteMutation.isPending ||
+              saveMutation.isPending
+            )
+              return
             deleteMutation.mutate(activeEntry.id)
           }}
           aria-label="Delete weigh-in"
@@ -150,7 +160,9 @@ export function WeighInDrawerForm({
       <Button
         type="button"
         className="mt-4 h-12 w-full rounded-xl text-base"
-        disabled={saveMutation.isPending || deleteMutation.isPending || !weightValue}
+        disabled={
+          saveMutation.isPending || deleteMutation.isPending || !weightValue
+        }
         onClick={submit}
       >
         Save
