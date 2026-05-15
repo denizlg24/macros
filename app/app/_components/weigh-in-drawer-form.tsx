@@ -136,11 +136,12 @@ export function WeighInDrawerForm({
           <span className="text-xs font-bold">Weight</span>
           <div className="relative">
             <Input
-              autoFocus
-              inputMode="decimal"
+              readOnly
+              tabIndex={-1}
+              inputMode="none"
               value={weightValue}
-              onChange={(event) => setDraftWeight(event.target.value)}
-              className="h-12 rounded-xl border-2 pr-11 text-xl"
+              onFocus={(event) => event.target.blur()}
+              className="pointer-events-none h-12 rounded-xl border-2 pr-11 text-xl"
             />
             <span className="absolute right-4 top-1/2 -translate-y-1/2 text-base">
               kg
