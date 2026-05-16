@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm"
+import { and, eq } from "drizzle-orm"
 import { headers } from "next/headers"
 import { NextResponse } from "next/server"
 import { z } from "zod"
@@ -195,35 +195,49 @@ export async function POST(request: Request) {
         },
       })
 
-    await tx
-      .update(nutritionPlans)
-      .set({ status: "archived", updatedAt: now })
-      .where(eq(nutritionPlans.userId, session.user.id))
+    const existingActivePlan = await tx.query.nutritionPlans.findFirst({
+      where: and(
+        eq(nutritionPlans.userId, session.user.id),
+        eq(nutritionPlans.status, "active")
+      ),
+    })
 
-    const [insertedPlan] = await tx
-      .insert(nutritionPlans)
-      .values({
-        userId: session.user.id,
-        name: nutritionPlan.name,
-        goalType: weightGoal.goalType,
-        startDate: today,
-        calorieTarget: toNumericString(calorieAvg),
-        proteinTarget: toNumericString(proteinAvg),
-        carbsTarget: toNumericString(carbsAvg),
-        fatTarget: toNumericString(fatAvg),
-      })
-      .returning({ id: nutritionPlans.id })
+    let planId: string
+    if (existingActivePlan) {
+      planId = existingActivePlan.id
+    } else {
+      await tx
+        .update(nutritionPlans)
+        .set({ status: "archived", updatedAt: now })
+        .where(eq(nutritionPlans.userId, session.user.id))
 
-    await tx.insert(nutritionPlanDays).values(
-      nutritionPlan.days.map((d) => ({
-        planId: insertedPlan.id,
-        weekday: d.weekday,
-        calorieTarget: toNumericString(d.calorieTarget),
-        proteinTarget: toNumericString(d.proteinTarget),
-        carbsTarget: toNumericString(d.carbsTarget),
-        fatTarget: toNumericString(d.fatTarget),
-      }))
-    )
+      const [insertedPlan] = await tx
+        .insert(nutritionPlans)
+        .values({
+          userId: session.user.id,
+          name: nutritionPlan.name,
+          goalType: weightGoal.goalType,
+          startDate: today,
+          calorieTarget: toNumericString(calorieAvg),
+          proteinTarget: toNumericString(proteinAvg),
+          carbsTarget: toNumericString(carbsAvg),
+          fatTarget: toNumericString(fatAvg),
+        })
+        .returning({ id: nutritionPlans.id })
+
+      planId = insertedPlan.id
+
+      await tx.insert(nutritionPlanDays).values(
+        nutritionPlan.days.map((d) => ({
+          planId: planId,
+          weekday: d.weekday,
+          calorieTarget: toNumericString(d.calorieTarget),
+          proteinTarget: toNumericString(d.proteinTarget),
+          carbsTarget: toNumericString(d.carbsTarget),
+          fatTarget: toNumericString(d.fatTarget),
+        }))
+      )
+    }
   })
 
   return NextResponse.json({ status: "completed" })

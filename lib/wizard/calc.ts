@@ -142,7 +142,12 @@ export function adjustSplit(
 
 export function computeAgeFromBirthDate(birthDate: string): number | undefined {
   if (!birthDate) return undefined
-  const birth = new Date(birthDate)
+  const parts = birthDate.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (!parts) return undefined
+  const year = parseInt(parts[1], 10)
+  const month = parseInt(parts[2], 10)
+  const day = parseInt(parts[3], 10)
+  const birth = new Date(year, month - 1, day)
   if (isNaN(birth.getTime())) return undefined
   const today = new Date()
   let age = today.getFullYear() - birth.getFullYear()
@@ -194,7 +199,9 @@ export function calculateMacros(params: {
     : PROTEIN_PROFILES[0]
 
   const protein = Math.round(weightKg * profile.proteinPerKg)
-  const fat = Math.max(Math.round((calories * profile.fatPct) / 9), 30)
+  const desiredFat = Math.round((calories * profile.fatPct) / 9)
+  const maxFatBasedOnProtein = Math.floor((calories - protein * 4) / 9)
+  const fat = Math.max(Math.min(desiredFat, maxFatBasedOnProtein), 30)
   const carbs = Math.max(Math.round((calories - protein * 4 - fat * 9) / 4), 0)
 
   return { calories, protein, carbs, fat }

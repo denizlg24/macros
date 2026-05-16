@@ -13,10 +13,11 @@ export async function POST(
     const goal = await reopenGoal(session.user.id, id)
     return NextResponse.json({ goal })
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error"
-    return NextResponse.json(
-      { error: message },
-      { status: message === "Goal not found" ? 404 : 500 }
-    )
+    console.error("Error reopening goal:", err)
+    const isNotFound =
+      err instanceof Error && err.message === "Goal not found"
+    const status = isNotFound ? 404 : 500
+    const message = isNotFound ? "Goal not found" : "Internal server error"
+    return NextResponse.json({ error: message }, { status })
   }
 }

@@ -11,14 +11,25 @@ export const planDayInputSchema = z.object({
   fatTarget: z.number().finite().min(0).max(2000),
 })
 
-export const upsertPlanBodySchema = z.object({
-  name: z.string().min(1).max(120).optional(),
-  goalType: planGoalTypeSchema,
-  activityLevel: z
-    .enum(["sedentary", "light", "moderate", "active", "very_active"])
-    .optional(),
-  days: z.array(planDayInputSchema).length(7),
-})
+export const upsertPlanBodySchema = z
+  .object({
+    name: z.string().min(1).max(120).optional(),
+    goalType: planGoalTypeSchema,
+    activityLevel: z
+      .enum(["sedentary", "light", "moderate", "active", "very_active"])
+      .optional(),
+    days: z.array(planDayInputSchema).length(7),
+  })
+  .superRefine((data, ctx) => {
+    const weekdays = new Set(data.days.map((d) => d.weekday))
+    if (weekdays.size !== 7) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Days must contain exactly 7 unique weekdays (0-6)",
+        path: ["days"],
+      })
+    }
+  })
 
 export type UpsertPlanBody = z.infer<typeof upsertPlanBodySchema>
 

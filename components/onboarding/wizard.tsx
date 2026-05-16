@@ -350,6 +350,51 @@ export function OnboardingWizard({
       }))
   )
 
+  useEffect(() => {
+    if (currentWeight !== "") {
+      const kg = parseFloat(currentWeight)
+      if (Number.isFinite(kg)) {
+        const converted =
+          weightUnit === "lb" ? kgToLb(kg) : lbToKg(kg)
+        setCurrentWeight(String(converted))
+      }
+    }
+    if (targetWeight !== "") {
+      const kg = parseFloat(targetWeight)
+      if (Number.isFinite(kg)) {
+        const converted =
+          weightUnit === "lb" ? kgToLb(kg) : lbToKg(kg)
+        setTargetWeight(String(converted))
+      }
+    }
+    const hCm = computeHeightCm()
+    if (hCm !== undefined) {
+      if (weightUnit === "lb") {
+        const totalIn = Math.round(hCm / 2.54)
+        setHeightFt(String(Math.floor(totalIn / 12)))
+        setHeightIn(String(totalIn % 12))
+        setHeightCm("")
+      } else {
+        setHeightCm(String(Math.round(hCm)))
+        setHeightFt("")
+        setHeightIn("")
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [weightUnit])
+
+  useEffect(() => {
+    if (calories !== "") {
+      const kcal = parseFloat(calories)
+      if (Number.isFinite(kcal)) {
+        const converted =
+          energyUnit === "kj" ? Math.round(kcal * 4.184) : Math.round(kcal / 4.184)
+        setCalories(String(converted))
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [energyUnit])
+
   function computeHeightCm(): number | undefined {
     if (weightUnit === "kg") {
       const cm = parseFloat(heightCm)
@@ -544,7 +589,14 @@ export function OnboardingWizard({
           carbs: Math.round((calorieKcal * (split.carbs / 100)) / 4),
           fat: Math.round((calorieKcal * (split.fat / 100)) / 9),
         }
-        const days = buildWeekdayMacros(baseDaily, dayDeltas)
+        const convertedDayDeltas =
+          energyUnit === "kj"
+            ? dayDeltas.map((d) => ({
+                ...d,
+                delta: Math.round(d.delta / 4.184),
+              }))
+            : dayDeltas
+        const days = buildWeekdayMacros(baseDaily, convertedDayDeltas)
         payload.nutritionPlan = {
           name: initial?.planName,
           goalType: (goalType || initial?.goalType || "maintain") as GoalType,

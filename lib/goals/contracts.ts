@@ -9,6 +9,8 @@ export type GoalOutcome = z.infer<typeof goalOutcomeSchema>
 const dateSchema = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD")
+  .pipe(z.coerce.date())
+  .transform((d) => d.toISOString().slice(0, 10))
 
 export const upsertGoalBodySchema = z.object({
   goalType: goalTypeSchema,

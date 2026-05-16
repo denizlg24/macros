@@ -346,7 +346,7 @@ function WeekdayBars({ days }: { days: PlanDetail["days"] }) {
         const carbsPct = (carbsKcal / sum) * 100
         const totalHeight = 180
         const minHeight = totalHeight * (calories / maxKcal)
-        const label = ["M", "T", "W", "T", "F", "S", "S"][i]
+        const label = ["M", "T", "W", "T", "F", "S", "S"][d.weekday]
         return (
           <div key={d.weekday} className="flex flex-col items-center gap-1.5">
             <span

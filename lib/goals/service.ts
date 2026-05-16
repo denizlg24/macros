@@ -180,19 +180,25 @@ export async function updateActiveGoal(
     return createGoal(userId, body)
   }
   const now = new Date()
+  const updates: Record<string, unknown> = {
+    goalType: body.goalType,
+    updatedAt: now,
+  }
+  if (body.startWeightKg != null) {
+    updates.startWeightKg = toNumeric(body.startWeightKg)
+  }
+  if (body.hasOwnProperty("targetWeightKg")) {
+    updates.targetWeightKg = toNumeric(body.targetWeightKg ?? null)
+  }
+  if (body.hasOwnProperty("targetDate")) {
+    updates.targetDate = body.targetDate ?? null
+  }
+  if (body.hasOwnProperty("weeklyRateKg")) {
+    updates.weeklyRateKg = toNumeric(body.weeklyRateKg ?? null)
+  }
   await db
     .update(weightGoals)
-    .set({
-      goalType: body.goalType,
-      startWeightKg:
-        body.startWeightKg != null
-          ? toNumeric(body.startWeightKg)
-          : toNumeric(existing.startWeightKg),
-      targetWeightKg: toNumeric(body.targetWeightKg ?? null),
-      targetDate: body.targetDate ?? null,
-      weeklyRateKg: toNumeric(body.weeklyRateKg ?? null),
-      updatedAt: now,
-    })
+    .set(updates)
     .where(eq(weightGoals.id, existing.id))
 
   const detail = await getActiveGoal(userId)
