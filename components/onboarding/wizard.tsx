@@ -9,7 +9,7 @@ import {
   Minus,
   Plus,
 } from "lucide-react"
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -350,20 +350,29 @@ export function OnboardingWizard({
       }))
   )
 
+  const computeHeightCm: () => number | undefined = useCallback(() => {
+    if (weightUnit === "kg") {
+      const cm = parseFloat(heightCm)
+      return Number.isFinite(cm) ? cm : undefined
+    }
+    const ft = parseInt(heightFt) || 0
+    const inches = parseInt(heightIn) || 0
+    if (ft === 0 && inches === 0) return undefined
+    return Math.round((ft * 12 + inches) * 2.54 * 10) / 10
+  }, [heightCm, heightFt, heightIn, weightUnit])
+
   useEffect(() => {
     if (currentWeight !== "") {
       const kg = parseFloat(currentWeight)
       if (Number.isFinite(kg)) {
-        const converted =
-          weightUnit === "lb" ? kgToLb(kg) : lbToKg(kg)
+        const converted = weightUnit === "lb" ? kgToLb(kg) : lbToKg(kg)
         setCurrentWeight(String(converted))
       }
     }
     if (targetWeight !== "") {
       const kg = parseFloat(targetWeight)
       if (Number.isFinite(kg)) {
-        const converted =
-          weightUnit === "lb" ? kgToLb(kg) : lbToKg(kg)
+        const converted = weightUnit === "lb" ? kgToLb(kg) : lbToKg(kg)
         setTargetWeight(String(converted))
       }
     }
@@ -380,31 +389,21 @@ export function OnboardingWizard({
         setHeightIn("")
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [weightUnit])
+  }, [weightUnit, computeHeightCm, targetWeight, currentWeight])
 
   useEffect(() => {
     if (calories !== "") {
       const kcal = parseFloat(calories)
       if (Number.isFinite(kcal)) {
         const converted =
-          energyUnit === "kj" ? Math.round(kcal * 4.184) : Math.round(kcal / 4.184)
+          energyUnit === "kj"
+            ? Math.round(kcal * 4.184)
+            : Math.round(kcal / 4.184)
         setCalories(String(converted))
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [energyUnit])
-
-  function computeHeightCm(): number | undefined {
-    if (weightUnit === "kg") {
-      const cm = parseFloat(heightCm)
-      return Number.isFinite(cm) ? cm : undefined
-    }
-    const ft = parseInt(heightFt) || 0
-    const inches = parseInt(heightIn) || 0
-    if (ft === 0 && inches === 0) return undefined
-    return Math.round((ft * 12 + inches) * 2.54 * 10) / 10
-  }
+  }, [energyUnit, calories])
 
   function toWeightKg(value: string): number | undefined {
     const n = parseFloat(value)
