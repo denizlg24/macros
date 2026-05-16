@@ -1,18 +1,19 @@
-import { eq } from "drizzle-orm"
+import { and, eq } from "drizzle-orm"
 import { headers } from "next/headers"
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { db } from "@/db/connection"
 import {
+  nutritionPlanDays,
   nutritionPlans,
   userProfiles,
   weighIns,
   weightGoals,
 } from "@/db/schema"
 import { auth } from "@/lib/auth"
+import { planDayInputSchema } from "@/lib/plans/contracts"
 
 const dateSchema = z.iso.date()
-const optionalPositiveNumber = z.number().positive().optional()
 
 const completeRegistrationSchema = z.object({
   profile: z.object({
@@ -39,11 +40,8 @@ const completeRegistrationSchema = z.object({
     weeklyRateKg: z.number().min(0).max(2).optional(),
   }),
   nutritionPlan: z.object({
-    name: z.string().min(1).max(120).default("Initial plan"),
-    calorieTarget: optionalPositiveNumber,
-    proteinTarget: optionalPositiveNumber,
-    carbsTarget: optionalPositiveNumber,
-    fatTarget: optionalPositiveNumber,
+    name: z.string().min(1).max(120).default("Coached Program"),
+    days: z.array(planDayInputSchema).length(7),
   }),
 })
 
@@ -61,19 +59,19 @@ function getProfileBirthDate(
   profile: z.infer<typeof completeRegistrationSchema>["profile"],
   now: Date
 ) {
-  if (profile.birthDate) {
-    return profile.birthDate
-  }
-
-  if (profile.ageYears === undefined) {
-    return undefined
-  }
-
+  if (profile.birthDate) return profile.birthDate
+  if (profile.ageYears === undefined) return undefined
   return getBirthDateFromAge(profile.ageYears, now)
 }
 
-function toNumericString(value: number | undefined) {
-  return value === undefined ? undefined : value.toString()
+function toNumericString(value: number | undefined | null) {
+  return value == null ? null : value.toString()
+}
+
+function averageOfDays(values: number[]): number | null {
+  if (values.length === 0) return null
+  const sum = values.reduce((a, b) => a + b, 0)
+  return Math.round((sum / values.length) * 100) / 100
 }
 
 export async function POST(request: Request) {
@@ -124,6 +122,15 @@ export async function POST(request: Request) {
   const logDate = metrics.logDate ?? today
   const measuredAt = metrics.measuredAt ? new Date(metrics.measuredAt) : now
   const birthDate = getProfileBirthDate(profile, now)
+
+  const calorieAvg = averageOfDays(
+    nutritionPlan.days.map((d) => d.calorieTarget)
+  )
+  const proteinAvg = averageOfDays(
+    nutritionPlan.days.map((d) => d.proteinTarget)
+  )
+  const carbsAvg = averageOfDays(nutritionPlan.days.map((d) => d.carbsTarget))
+  const fatAvg = averageOfDays(nutritionPlan.days.map((d) => d.fatTarget))
 
   await db.transaction(async (tx) => {
     await tx
@@ -188,21 +195,49 @@ export async function POST(request: Request) {
         },
       })
 
-    await tx
-      .update(nutritionPlans)
-      .set({ status: "archived", updatedAt: now })
-      .where(eq(nutritionPlans.userId, session.user.id))
-
-    await tx.insert(nutritionPlans).values({
-      userId: session.user.id,
-      name: nutritionPlan.name,
-      goalType: weightGoal.goalType,
-      startDate: today,
-      calorieTarget: toNumericString(nutritionPlan.calorieTarget),
-      proteinTarget: toNumericString(nutritionPlan.proteinTarget),
-      carbsTarget: toNumericString(nutritionPlan.carbsTarget),
-      fatTarget: toNumericString(nutritionPlan.fatTarget),
+    const existingActivePlan = await tx.query.nutritionPlans.findFirst({
+      where: and(
+        eq(nutritionPlans.userId, session.user.id),
+        eq(nutritionPlans.status, "active")
+      ),
     })
+
+    let planId: string
+    if (existingActivePlan) {
+      planId = existingActivePlan.id
+    } else {
+      await tx
+        .update(nutritionPlans)
+        .set({ status: "archived", updatedAt: now })
+        .where(eq(nutritionPlans.userId, session.user.id))
+
+      const [insertedPlan] = await tx
+        .insert(nutritionPlans)
+        .values({
+          userId: session.user.id,
+          name: nutritionPlan.name,
+          goalType: weightGoal.goalType,
+          startDate: today,
+          calorieTarget: toNumericString(calorieAvg),
+          proteinTarget: toNumericString(proteinAvg),
+          carbsTarget: toNumericString(carbsAvg),
+          fatTarget: toNumericString(fatAvg),
+        })
+        .returning({ id: nutritionPlans.id })
+
+      planId = insertedPlan.id
+
+      await tx.insert(nutritionPlanDays).values(
+        nutritionPlan.days.map((d) => ({
+          planId: planId,
+          weekday: d.weekday,
+          calorieTarget: toNumericString(d.calorieTarget),
+          proteinTarget: toNumericString(d.proteinTarget),
+          carbsTarget: toNumericString(d.carbsTarget),
+          fatTarget: toNumericString(d.fatTarget),
+        }))
+      )
+    }
   })
 
   return NextResponse.json({ status: "completed" })

@@ -1,4 +1,5 @@
 import { pageMetadata } from "@/app/metadata"
+import { StrategyPageClient } from "./_components/strategy-page-client"
 
 export const metadata = pageMetadata(
   "Strategy",
@@ -6,5 +7,5 @@ export const metadata = pageMetadata(
 )
 
 export default function Page() {
-  return <div></div>
+  return <StrategyPageClient />
 }

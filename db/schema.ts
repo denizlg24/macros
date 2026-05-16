@@ -74,6 +74,11 @@ export const weightGoalStatusEnum = pgEnum("weight_goal_status", [
   "active",
   "archived",
 ])
+export const weightGoalOutcomeEnum = pgEnum("weight_goal_outcome", [
+  "loss",
+  "gain",
+  "maintain",
+])
 export const weighInSourceEnum = pgEnum("weigh_in_source", ["manual"])
 export const weighInPhotoAngleEnum = pgEnum("weigh_in_photo_angle", [
   "front",
@@ -201,6 +206,32 @@ export const nutritionPlans = pgTable(
     uniqueIndex("nutrition_plans_one_active_per_user_idx")
       .on(table.userId)
       .where(sql`${table.status} = 'active'`),
+  ]
+)
+
+export const nutritionPlanDays = pgTable(
+  "nutrition_plan_days",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    planId: uuid("planId")
+      .notNull()
+      .references(() => nutritionPlans.id, { onDelete: "cascade" }),
+    weekday: integer("weekday").notNull(),
+    calorieTarget: numeric("calorieTarget", { precision: 8, scale: 2 }),
+    proteinTarget: numeric("proteinTarget", { precision: 8, scale: 2 }),
+    carbsTarget: numeric("carbsTarget", { precision: 8, scale: 2 }),
+    fatTarget: numeric("fatTarget", { precision: 8, scale: 2 }),
+    ...timestamps,
+  },
+  (table) => [
+    unique("nutrition_plan_days_plan_weekday_unique").on(
+      table.planId,
+      table.weekday
+    ),
+    check(
+      "nutrition_plan_days_weekday_range",
+      sql`${table.weekday} between 0 and 6`
+    ),
   ]
 )
 
@@ -593,12 +624,20 @@ export const weightGoals = pgTable(
     targetWeightKg: numeric("targetWeightKg", { precision: 7, scale: 3 }),
     targetDate: date("targetDate"),
     weeklyRateKg: numeric("weeklyRateKg", { precision: 6, scale: 3 }),
+    closedAt: timestamp("closedAt", { withTimezone: true }),
+    endWeightKg: numeric("endWeightKg", { precision: 7, scale: 3 }),
+    outcome: weightGoalOutcomeEnum("outcome"),
+    achieved: boolean("achieved"),
     ...timestamps,
   },
   (table) => [
     uniqueIndex("weight_goals_one_active_per_user_idx")
       .on(table.userId)
       .where(sql`${table.status} = 'active'`),
+    index("weight_goals_user_start_idx").on(
+      table.userId,
+      table.startDate.desc()
+    ),
   ]
 )
 
@@ -792,6 +831,17 @@ export const nutritionPlanRelations = relations(
   ({ many, one }) => ({
     user: one(user, { fields: [nutritionPlans.userId], references: [user.id] }),
     nutrientTargets: many(nutrientTargets),
+    days: many(nutritionPlanDays),
+  })
+)
+
+export const nutritionPlanDayRelations = relations(
+  nutritionPlanDays,
+  ({ one }) => ({
+    plan: one(nutritionPlans, {
+      fields: [nutritionPlanDays.planId],
+      references: [nutritionPlans.id],
+    }),
   })
 )
 
@@ -1021,6 +1071,7 @@ export const schema = {
   userProfiles,
   nutrientDefinitions,
   nutritionPlans,
+  nutritionPlanDays,
   nutrientTargets,
   foods,
   userCustomFoods,
@@ -1044,6 +1095,7 @@ export const schema = {
   accountRelations,
   userProfileRelations,
   nutritionPlanRelations,
+  nutritionPlanDayRelations,
   nutrientTargetRelations,
   foodRelations,
   userCustomFoodRelations,
