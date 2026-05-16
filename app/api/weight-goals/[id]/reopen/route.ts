@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { getRequiredSession } from "@/lib/api/session"
-import { reopenGoal } from "@/lib/goals/service"
+import { NotFoundError, reopenGoal } from "@/lib/goals/service"
 
 export async function POST(
   _request: Request,
@@ -14,8 +14,7 @@ export async function POST(
     return NextResponse.json({ goal })
   } catch (err) {
     console.error("Error reopening goal:", err)
-    const isNotFound =
-      err instanceof Error && err.message === "Goal not found"
+    const isNotFound = err instanceof NotFoundError
     const status = isNotFound ? 404 : 500
     const message = isNotFound ? "Goal not found" : "Internal server error"
     return NextResponse.json({ error: message }, { status })

@@ -8,6 +8,13 @@ import type {
   UpsertGoalBody,
 } from "./contracts"
 
+export class NotFoundError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = "NotFoundError"
+  }
+}
+
 function parseNumeric(value: string | null): number | null {
   if (value == null) return null
   const num = Number(value)
@@ -215,7 +222,7 @@ export async function reopenGoal(
     const target = await tx.query.weightGoals.findFirst({
       where: and(eq(weightGoals.id, goalId), eq(weightGoals.userId, userId)),
     })
-    if (!target) throw new Error("Goal not found")
+    if (!target) throw new NotFoundError("Goal not found")
     if (target.status === "active") return
 
     const current = await tx.query.weightGoals.findFirst({
