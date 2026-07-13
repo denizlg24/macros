@@ -55,7 +55,7 @@
     "zod": "^4.4.2"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.4.14",
+    "@biomejs/biome": "2.5.3",
     "@commitlint/cli": "^20.5.3",
     "@commitlint/config-conventional": "^20.5.3",
     "@tailwindcss/postcss": "^4.2.4",
@@ -69,6 +69,6 @@
     "postcss": "^8",
     "tailwindcss": "^4.2.4",
     "tsx": "^4.21.0",
-    "typescript": "^6.0.3"
+    "typescript": "^7.0.2"
   }
 }
